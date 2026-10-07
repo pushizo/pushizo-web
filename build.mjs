@@ -1,0 +1,54 @@
+// Web SDK paketleme: ESM kütüphane, IIFE (CDN/script etiketi) ve service worker bundle'ı.
+import { build, context } from 'esbuild';
+import { readFileSync } from 'node:fs';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+const watch = process.argv.includes('--watch');
+const define = { __HS_SDK_VERSION__: JSON.stringify(pkg.version) };
+
+/** @type {import('esbuild').BuildOptions[]} */
+const targets = [
+  {
+    entryPoints: ['src/index.ts'],
+    outfile: 'dist/index.js',
+    format: 'esm',
+    bundle: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
+    entryPoints: ['src/entry-iife.ts'],
+    outfile: 'dist/HeroSignalSDK.js',
+    format: 'iife',
+    bundle: true,
+    minify: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
+    entryPoints: ['src/sw/worker.ts'],
+    outfile: 'dist/HeroSignalSDKWorker.js',
+    format: 'iife',
+    bundle: true,
+    minify: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+];
+
+if (watch) {
+  for (const t of targets) {
+    const ctx = await context(t);
+    await ctx.watch();
+  }
+  console.log('[sdk-web] izleniyor…');
+} else {
+  for (const t of targets) await build(t);
+  console.log('[sdk-web] dist hazır');
+}

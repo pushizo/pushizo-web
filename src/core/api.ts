@@ -1,0 +1,289 @@
+import type { Logger } from './logger.js';
+import type { ContactChannel, DeviceInfo, InAppMessage } from './types.js';
+
+export interface ApiOptions {
+  baseUrl: string;
+  appId: string;
+  fetch?: typeof fetch;
+  logger: Logger;
+  /** Testler için: geri çekilme beklemelerini kısaltır. */
+  sleep?: (ms: number) => Promise<void>;
+  maxRetries?: number;
+}
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+    readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+  /** 5xx/429/ağ hataları yeniden denenebilir; 4xx denenmez. */
+  get retryable(): boolean {
+    return this.status === 0 || this.status === 429 || this.status >= 500;
+  }
+}
+
+interface ErrorEnvelope {
+  error?: { code?: string; message?: string; details?: Record<string, unknown> };
+}
+
+const BACKOFF_MS = [500, 1500, 4000];
+
+/** `/sdk/v1/apps/{appId}` uçlarına JSON istek; 429/5xx ve ağ hatalarında üstel geri çekilme. */
+export class SdkApi {
+  private readonly fetchImpl: typeof fetch;
+  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly maxRetries: number;
+
+  constructor(private readonly options: ApiOptions) {
+    this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
+    this.sleep = options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.maxRetries = options.maxRetries ?? BACKOFF_MS.length;
+  }
+
+  get appBase(): string {
+    return `${this.options.baseUrl.replace(/\/$/, '')}/sdk/v1/apps/${encodeURIComponent(this.options.appId)}`;
+  }
+
+  async request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+    let attempt = 0;
+    for (;;) {
+      try {
+        const response = await this.fetchImpl(`${this.appBase}${path}`, {
+          method,
+          headers: body === undefined ? { accept: 'application/json' } : { 'content-type': 'application/json', accept: 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          // Çerez göndermeyiz; SDK app_id ile konuşur.
+          credentials: 'omit',
+          keepalive: method === 'POST' && path.endsWith('/sessions'),
+        });
+        if (response.ok) {
+          if (response.status === 204) return undefined as T;
+          const text = await response.text();
+          return (text ? JSON.parse(text) : undefined) as T;
+        }
+        let envelope: ErrorEnvelope = {};
+        try {
+          envelope = (await response.json()) as ErrorEnvelope;
+        } catch {
+          envelope = {};
+        }
+        const err = new ApiError(response.status, envelope.error?.code ?? `HTTP_${response.status}`, envelope.error?.message ?? `HTTP ${response.status}`, envelope.error?.details);
+        if (!err.retryable || attempt >= this.maxRetries) throw err;
+        const retryAfter = Number(response.headers.get('retry-after'));
+        await this.sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]!);
+      } catch (err) {
+        if (err instanceof ApiError) throw err;
+        // Ağ hatası
+        if (attempt >= this.maxRetries) throw new ApiError(0, 'NETWORK', err instanceof Error ? err.message : 'network error');
+        this.options.logger.debug('ağ hatası, yeniden deneniyor', err);
+        await this.sleep(BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)]!);
+      }
+      attempt++;
+    }
+  }
+}
+
+/** Sorgu dizesi; tanımsız/boş değerler atlanır. */
+export function queryString(params: Record<string, string | number | undefined | null>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    q.set(k, String(v));
+  }
+  const text = q.toString();
+  return text ? `?${text}` : '';
+}
+
+const enc = encodeURIComponent;
+
+/**
+ * Abonelik sahiplik kanıtı (ADR-0016): kayıtlı token'ın SHA-256 özeti ve/veya kullanıcının identity_hash'i.
+ * `PATCH`/`DELETE subscriptions/{id}` isteklerine eklenir; kanıtla kaydolan abonelik kanıtsız değiştirilemez.
+ */
+export interface OwnershipProof {
+  token_hash?: string;
+  identity_hash?: string;
+}
+
+export function ownershipProof(
+  tokenHash: string | null | undefined,
+  identityHash?: string | null,
+): OwnershipProof {
+  return {
+    // crypto.subtle yoksa `digest` özet üretemez; ham değer kanıt olarak gönderilmez.
+    ...(tokenHash && /^[0-9a-f]{64}$/.test(tokenHash) ? { token_hash: tokenHash } : {}),
+    ...(identityHash ? { identity_hash: identityHash } : {}),
+  };
+}
+
+// --- Faz 10 SDK uçları (docs/messaging.md §7-§8) ---
+
+/** `POST /subscriptions` ile e-posta/SMS aboneliği (kullanıcı varsa external_id ile bağlanır). */
+export function registerContact(
+  api: SdkApi,
+  body: {
+    channel: ContactChannel;
+    token: string;
+    device: DeviceInfo;
+    user: { external_id?: string; identity_hash?: string; subscription_id?: string };
+  },
+): Promise<RegisterResult> {
+  return api.request<RegisterResult>('POST', '/subscriptions', { ...body, ownership_proof: true });
+}
+
+/** Aboneliği siler (`User.removeEmail`/`removeSms`); kanıt sorgu parametresiyle gönderilir. */
+export function deleteSubscription(
+  api: SdkApi,
+  subscriptionId: string,
+  proof: OwnershipProof = {},
+): Promise<void> {
+  return api.request<void>('DELETE', `/subscriptions/${enc(subscriptionId)}${queryString({ ...proof })}`);
+}
+
+/** Cihaz için gösterilebilir in-app mesajlar. */
+export function fetchInAppMessages(api: SdkApi, subscriptionId: string): Promise<SdkInAppList> {
+  return api.request<SdkInAppList>('GET', `/in-app${queryString({ subscription_id: subscriptionId })}`);
+}
+
+/** In-app gösterim / tıklama / kapatma olayı (`click` için `button_id` zorunlu). */
+export function postInAppEvent(
+  api: SdkApi,
+  messageId: string,
+  body: { subscription_id: string; type: 'impression' | 'click' | 'dismiss'; button_id?: string },
+): Promise<void> {
+  return api.request<void>('POST', `/in-app/${enc(messageId)}/events`, body);
+}
+
+/** Bildirim kutusu yetkilendirmesi: abonelik kullanıcıya ait olmalı; doğrulama zorunluysa `identity_hash`. */
+export interface InboxAuth {
+  userId: string;
+  subscriptionId: string;
+  identityHash?: string | null;
+}
+
+export function fetchInbox(
+  api: SdkApi,
+  auth: InboxAuth,
+  page: { limit?: number; cursor?: string } = {},
+): Promise<SdkInboxPage> {
+  const query = queryString({
+    subscription_id: auth.subscriptionId,
+    identity_hash: auth.identityHash,
+    limit: page.limit,
+    cursor: page.cursor,
+  });
+  return api.request<SdkInboxPage>('GET', `/users/${enc(auth.userId)}/inbox${query}`);
+}
+
+function inboxActionBody(auth: InboxAuth): { subscription_id: string; identity_hash?: string } {
+  return {
+    subscription_id: auth.subscriptionId,
+    ...(auth.identityHash ? { identity_hash: auth.identityHash } : {}),
+  };
+}
+
+export function markInboxItemRead(
+  api: SdkApi,
+  auth: InboxAuth,
+  itemId: string,
+): Promise<SdkInboxItem> {
+  return api.request<SdkInboxItem>(
+    'POST',
+    `/users/${enc(auth.userId)}/inbox/${enc(itemId)}/read`,
+    inboxActionBody(auth),
+  );
+}
+
+export function markAllInboxRead(
+  api: SdkApi,
+  auth: InboxAuth,
+): Promise<{ updated: number; unread_count: number }> {
+  return api.request('POST', `/users/${enc(auth.userId)}/inbox/read-all`, inboxActionBody(auth));
+}
+
+export function archiveInboxItem(api: SdkApi, auth: InboxAuth, itemId: string): Promise<void> {
+  const query = queryString({ subscription_id: auth.subscriptionId, identity_hash: auth.identityHash });
+  return api.request<void>('DELETE', `/users/${enc(auth.userId)}/inbox/${enc(itemId)}${query}`);
+}
+
+/** `GET /in-app` yanıtı. */
+export interface SdkInAppList {
+  language: string;
+  data: InAppMessage[];
+}
+
+/** Bildirim kutusu öğesi (API biçimi). */
+export interface SdkInboxItem {
+  id: string;
+  message_id: string | null;
+  title: string | null;
+  body: string | null;
+  url: string | null;
+  image_url: string | null;
+  data: Record<string, string>;
+  read: boolean;
+  read_at: string | null;
+  archived_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface SdkInboxPage {
+  data: SdkInboxItem[];
+  unread_count: number;
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+/** HeroSignal public app yapılandırması (GET /config). */
+export interface SdkConfig {
+  app_id: string;
+  name: string;
+  identity_verification_required: boolean;
+  platforms: { ios: boolean; android: boolean; web: boolean; email: boolean; sms: boolean };
+  web: {
+    vapid_public_key: string | null;
+    allowed_origins: string[];
+    /** Dashboard'da ayarlanan service worker yolu/kapsamı (init seçenekleri önceliklidir). */
+    service_worker_path?: string | null;
+    service_worker_scope?: string | null;
+    /** Dashboard'dan yönetilen otomatik izin istemi (init `slidedown`/`autoPrompt` verilmemişse). */
+    prompt?: RemotePromptConfig | null;
+  };
+  session: { timeout_seconds: number };
+}
+
+/** Dil kodu (2 harf) → metin. */
+export type LocalizedTexts<T> = Record<string, T>;
+
+/** `GET /config` → `web.prompt`. */
+export interface RemotePromptConfig {
+  enabled: boolean;
+  type: 'slidedown' | 'native';
+  delaySeconds?: number;
+  pageViews?: number;
+  scrollPercent?: number;
+  texts?: LocalizedTexts<{ title?: string; message?: string; accept?: string; cancel?: string }>;
+  categories?: { tag: string; label: LocalizedTexts<string> }[];
+  /** Kabul düğmesi rengi (#rrggbb). */
+  accentColor?: string;
+}
+
+export interface RegisterResult {
+  subscription_id: string;
+  user_id: string;
+  external_id: string | null;
+  status: string;
+  created: boolean;
+}
+
+export interface UserResult {
+  user_id: string;
+  external_id: string | null;
+  tags: Record<string, string>;
+}
