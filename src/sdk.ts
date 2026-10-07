@@ -8,7 +8,9 @@ import {
 import {
   DEFAULT_PROMPT_BACKOFF_DAYS,
   mountBell,
+  customLinkFromRemote,
   promptBackoffElapsed,
+  welcomeFromRemote,
   showSlidedown,
   slidedownFromRemote,
   waitForScrollPercent,
@@ -192,8 +194,8 @@ export class HeroSignalSdk {
           '/HeroSignalSDKWorker.js',
         serviceWorkerScope:
           options.serviceWorkerScope ?? this.config?.web.service_worker_scope ?? undefined,
-        clickMatch: options.notificationClickHandlerMatch,
-        clickAction: options.notificationClickHandlerAction,
+        clickMatch: options.notificationClickHandlerMatch ?? this.config?.web.click_behavior?.match,
+        clickAction: options.notificationClickHandlerAction ?? this.config?.web.click_behavior?.action,
         logger: this.logger,
       });
       this.push.onMessage((message, reply) => this.handleWorkerMessage(message, reply));
@@ -307,8 +309,9 @@ export class HeroSignalSdk {
   private async showWelcomeNotification(): Promise<void> {
     const subscriptionId = this.store!.get().subscriptionId;
     if (!this.push || !subscriptionId || this.store!.get().welcomeShownFor === subscriptionId) return;
+    const remoteWelcome = this.config?.web.welcome_notification;
     const welcome = welcomeNotification(
-      this.options!.welcomeNotification,
+      this.options!.welcomeNotification ?? (remoteWelcome ? welcomeFromRemote(remoteWelcome, this.language) : undefined),
       this.language,
       document.title,
       window.location.origin,
@@ -325,7 +328,9 @@ export class HeroSignalSdk {
 
   /** Özel bağlantı istemini (`promptOptions.customlink`) sayfadaki kapsayıcılara çizer. */
   private renderCustomLinks(): void {
-    const custom = this.options?.promptOptions?.customlink;
+    const remoteCustom = this.config?.web.custom_link;
+    const custom =
+      this.options?.promptOptions?.customlink ?? (remoteCustom ? customLinkFromRemote(remoteCustom, this.language) : undefined);
     if (!custom?.enabled || typeof document === 'undefined' || !this.store) return;
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => this.renderCustomLinks(), { once: true });
@@ -795,7 +800,7 @@ export class HeroSignalSdk {
       const schedule =
         opts.retryDays !== undefined
           ? [opts.retryDays]
-          : (this.options?.promptOptions?.backoffDays ?? DEFAULT_PROMPT_BACKOFF_DAYS);
+          : (this.options?.promptOptions?.backoffDays ?? this.config?.web.prompt_backoff_days ?? DEFAULT_PROMPT_BACKOFF_DAYS);
       // Eski sürüm kaydı: ret anı var, sayaç yok → bir ret sayılır.
       const count = Math.max(state.promptDismissCount, state.slidedownDismissedAt ? 1 : 0);
       if (!promptBackoffElapsed(count, state.slidedownDismissedAt, Date.now(), schedule)) return;

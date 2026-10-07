@@ -1,5 +1,5 @@
-import type { RemotePromptConfig } from '../core/api.js';
-import type { BellOptions, SlidedownCategory, SlidedownOptions } from '../core/types.js';
+import type { RemoteCustomLinkConfig, RemotePromptConfig, RemoteWelcomeConfig } from '../core/api.js';
+import type { BellOptions, CustomLinkOptions, SlidedownCategory, SlidedownOptions, WelcomeNotificationOptions } from '../core/types.js';
 
 const TEXTS = {
   tr: {
@@ -59,6 +59,24 @@ export function pickLocalized<T>(map: Record<string, T> | undefined, language: s
   if (!map) return undefined;
   const lang = language.slice(0, 2).toLowerCase();
   return map[lang] ?? map.en ?? map.tr ?? Object.values(map)[0];
+}
+
+/** Dashboard karşılama bildirimi → init seçeneği biçimi (geçerli dile göre). */
+export function welcomeFromRemote(remote: RemoteWelcomeConfig, language: string): WelcomeNotificationOptions {
+  const texts = pickLocalized(remote.texts, language);
+  return { disable: !remote.enabled, title: texts?.title, message: texts?.message, url: remote.url };
+}
+
+/** Dashboard özel bağlantı istemi → init seçeneği biçimi (geçerli dile göre). */
+export function customLinkFromRemote(remote: RemoteCustomLinkConfig, language: string): CustomLinkOptions {
+  return {
+    enabled: remote.enabled,
+    style: remote.style,
+    size: remote.size,
+    color: remote.color,
+    text: pickLocalized(remote.texts, language),
+    unsubscribeEnabled: remote.unsubscribeEnabled,
+  };
 }
 
 /** Dashboard istemi (`config.web.prompt`) → slidedown seçenekleri (geçerli dile göre). */

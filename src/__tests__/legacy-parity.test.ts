@@ -209,3 +209,22 @@ describe('SDK: slidedown geri çekilmesi kalıcıdır', () => {
     expect(stored().promptDismissCount).toBe(3);
   });
 });
+
+describe('dashboard web yapılandırması (config.web)', () => {
+  it('karşılama bildirimi ve özel bağlantı dile göre init seçeneklerine çevrilir', async () => {
+    const { welcomeFromRemote, customLinkFromRemote } = await import('../browser/prompts.js');
+    expect(
+      welcomeFromRemote(
+        { enabled: true, url: 'https://shop.test/hos-geldin', texts: { tr: { title: 'Hoş geldin', message: 'Teşekkürler' }, en: { title: 'Welcome' } } },
+        'tr-TR',
+      ),
+    ).toEqual({ disable: false, title: 'Hoş geldin', message: 'Teşekkürler', url: 'https://shop.test/hos-geldin' });
+    expect(welcomeFromRemote({ enabled: false }, 'en')).toMatchObject({ disable: true });
+    expect(
+      customLinkFromRemote(
+        { enabled: true, style: 'link', size: 'small', color: { button: '#ff0000' }, texts: { en: { subscribe: 'Subscribe' } }, unsubscribeEnabled: true },
+        'de',
+      ),
+    ).toEqual({ enabled: true, style: 'link', size: 'small', color: { button: '#ff0000' }, text: { subscribe: 'Subscribe' }, unsubscribeEnabled: true });
+  });
+});

@@ -254,12 +254,34 @@ export interface SdkConfig {
     service_worker_scope?: string | null;
     /** Dashboard'dan yönetilen otomatik izin istemi (init `slidedown`/`autoPrompt` verilmemişse). */
     prompt?: RemotePromptConfig | null;
+    /** Dashboard web yapılandırması (init seçenekleri önceliklidir). */
+    welcome_notification?: RemoteWelcomeConfig | null;
+    click_behavior?: { match: 'exact' | 'origin'; action: 'navigate' | 'focus' } | null;
+    custom_link?: RemoteCustomLinkConfig | null;
+    prompt_backoff_days?: number[] | null;
   };
   session: { timeout_seconds: number };
 }
 
 /** Dil kodu (2 harf) → metin. */
 export type LocalizedTexts<T> = Record<string, T>;
+
+/** `GET /config` → `web.welcome_notification`. */
+export interface RemoteWelcomeConfig {
+  enabled: boolean;
+  url?: string;
+  texts?: LocalizedTexts<{ title?: string; message?: string }>;
+}
+
+/** `GET /config` → `web.custom_link`. */
+export interface RemoteCustomLinkConfig {
+  enabled: boolean;
+  style: 'button' | 'link';
+  size: 'small' | 'medium' | 'large';
+  color?: { button?: string; text?: string };
+  texts?: LocalizedTexts<{ subscribe?: string; unsubscribe?: string; explanation?: string }>;
+  unsubscribeEnabled?: boolean;
+}
 
 /** `GET /config` → `web.prompt`. */
 export interface RemotePromptConfig {
