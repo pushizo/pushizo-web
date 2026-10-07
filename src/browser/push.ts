@@ -6,6 +6,9 @@ export interface PushManagerOptions {
   apiUrl: string;
   serviceWorkerPath: string;
   serviceWorkerScope?: string;
+  /** SW'ye sorgu parametresi olarak iletilen tıklama davranışı (yalnızca verildiyse; SW URL'si gereksiz değişmez). */
+  clickMatch?: 'exact' | 'origin';
+  clickAction?: 'navigate' | 'focus';
   logger: Logger;
 }
 
@@ -62,11 +65,19 @@ export class WebPushManager {
     const url = new URL(this.options.serviceWorkerPath, window.location.origin);
     url.searchParams.set('appId', this.options.appId);
     url.searchParams.set('apiUrl', this.options.apiUrl);
+    if (this.options.clickMatch) url.searchParams.set('clickMatch', this.options.clickMatch);
+    if (this.options.clickAction) url.searchParams.set('clickAction', this.options.clickAction);
     const registration = await navigator.serviceWorker.register(url.toString(), { scope: this.options.serviceWorkerScope });
     await navigator.serviceWorker.ready;
     this.registration = registration;
     this.options.logger.debug('service worker kaydedildi', registration.scope);
     return registration;
+  }
+
+  /** Sayfadan yerel bildirim gösterir (ör. karşılama bildirimi); tıklamayı SW işler. */
+  async showLocalNotification(title: string, options: NotificationOptions): Promise<void> {
+    const reg = await this.register();
+    await reg.showNotification(title, options);
   }
 
   async getSubscription(): Promise<PushSubscription | null> {

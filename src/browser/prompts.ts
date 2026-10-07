@@ -85,6 +85,25 @@ export function safeAccentColor(value: string | undefined): string | undefined {
   return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : undefined;
 }
 
+/** eski sağlayıcı geri çekilme takvimi: 1. reddin ardından 3, 2. reddin ardından 7, sonrakilerde 30 gün beklenir. */
+export const DEFAULT_PROMPT_BACKOFF_DAYS = [3, 7, 30];
+
+/**
+ * İzin istemi (slidedown veya otomatik native istem) şimdi gösterilebilir mi?
+ * `dismissCount` kez reddedildiyse son retten itibaren takvimin `dismissCount`. adımı kadar gün beklenir;
+ * takvim bittiyse son değer tekrarlanır. Boş takvim veya 0 gün geri çekilmeyi kapatır.
+ */
+export function promptBackoffElapsed(
+  dismissCount: number,
+  dismissedAt: number | null,
+  now: number,
+  scheduleDays: readonly number[] = DEFAULT_PROMPT_BACKOFF_DAYS,
+): boolean {
+  if (!dismissedAt || dismissCount <= 0 || scheduleDays.length === 0) return true;
+  const days = scheduleDays[Math.min(dismissCount, scheduleDays.length) - 1] ?? 0;
+  return now - dismissedAt >= Math.max(0, days) * 86_400_000;
+}
+
 /** Slidedown sonucu; `tags` yalnızca kategori seçimi varsa ve kabul edildiyse doludur. */
 export interface SlidedownResult {
   accepted: boolean;

@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { ErrorReporter } from '../core/errors.js';
 import type { HsPayloadMeta, WorkerMessage } from '../core/types.js';
-import { deliveryIdOf, isJsonObjectText, parsePushPayload, postWithRetry, resolveClickUrl, toNotificationOptions } from './payload.js';
+import { deliveryIdOf, isJsonObjectText, parsePushPayload, pickClickTarget, postWithRetry, resolveClickUrl, toNotificationOptions } from './payload.js';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -13,6 +13,9 @@ declare const self: ServiceWorkerGlobalScope;
 const params = new URL(self.location.href).searchParams;
 const APP_ID = params.get('appId') ?? '';
 const API_URL = (params.get('apiUrl') ?? self.location.origin).replace(/\/$/, '');
+/** Tıklama davranışı (init `notificationClickHandlerMatch`/`Action`; varsayılan exact + navigate). */
+const CLICK_MATCH = params.get('clickMatch');
+const CLICK_ACTION = params.get('clickAction');
 const STORE = 'hs-sw-config';
 const SDK_VERSION = typeof __HS_SDK_VERSION__ === 'string' ? __HS_SDK_VERSION__ : '0.0.0-dev';
 
@@ -117,11 +120,13 @@ self.addEventListener('notificationclick', (event) => {
       if (deliveryId) await post(deliveryUrl(deliveryId, 'opened'), actionId ? { button_id: actionId } : {});
       await broadcast({ type: 'hs:notification-click', payload: { title: data.title, body: data.body, url: data.url, actions: data.actions as never, hs: data.hs }, actionId, url });
       if (url) {
-        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-        const existing = clients.find((c) => 'focus' in c);
-        if (existing && 'navigate' in existing) {
-          await (existing as WindowClient).focus();
-          await (existing as WindowClient).navigate(url);
+        const clients = (await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) as WindowClient[];
+        const pick = pickClickTarget(clients.map((c) => c.url), url, CLICK_MATCH, CLICK_ACTION);
+        const client = pick ? clients[pick.index] : undefined;
+        if (client) {
+          await client.focus();
+          // Kapsam dışı sekmede navigate() hata verebilir; o durumda yeni pencere açılır.
+          if (pick!.navigate) await client.navigate(url).catch(() => self.clients.openWindow(url));
         } else {
           await self.clients.openWindow(url);
         }

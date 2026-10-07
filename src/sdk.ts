@@ -6,11 +6,15 @@ import {
   WebPushManager,
 } from './browser/push.js';
 import {
+  DEFAULT_PROMPT_BACKOFF_DAYS,
   mountBell,
+  promptBackoffElapsed,
   showSlidedown,
   slidedownFromRemote,
   waitForScrollPercent,
 } from './browser/prompts.js';
+import { renderCustomLinks } from './browser/custom-link.js';
+import { welcomeNotification } from './browser/welcome.js';
 import { InAppManager } from './browser/in-app.js';
 import { SessionTracker } from './browser/session.js';
 import {
@@ -49,6 +53,7 @@ import type {
   InitOptions,
   LogLevel,
   NotificationClickEvent,
+  SlidedownOptions,
   PermissionState,
   PushSubscriptionState,
   QueuedOperation,
@@ -57,7 +62,6 @@ import type {
 } from './core/types.js';
 
 const SDK_VERSION = typeof __HS_SDK_VERSION__ === 'string' ? __HS_SDK_VERSION__ : '0.0.0-dev';
-const DAY_MS = 86_400_000;
 
 type Listener<T> = (event: T) => void;
 
@@ -188,6 +192,8 @@ export class HeroSignalSdk {
           '/HeroSignalSDKWorker.js',
         serviceWorkerScope:
           options.serviceWorkerScope ?? this.config?.web.service_worker_scope ?? undefined,
+        clickMatch: options.notificationClickHandlerMatch,
+        clickAction: options.notificationClickHandlerAction,
         logger: this.logger,
       });
       this.push.onMessage((message, reply) => this.handleWorkerMessage(message, reply));
@@ -232,9 +238,10 @@ export class HeroSignalSdk {
         () => void this.toggleBell(),
       );
     }
+    this.renderCustomLinks();
     // Yerel `autoPrompt`/`slidedown` seçenekleri önceliklidir; verilmemişse dashboard istemi kullanılır.
     const remotePrompt = this.config?.web.prompt;
-    if (options.autoPrompt) void this.Notifications.requestPermission();
+    if (options.autoPrompt) void this.maybeShowSlidedown({ pageViews: 1 }, 'native');
     else if (options.slidedown) {
       if (options.slidedown.enabled !== false) void this.maybeShowSlidedown(options.slidedown);
     } else if (remotePrompt?.enabled) {
@@ -291,8 +298,45 @@ export class HeroSignalSdk {
       device: this.deviceInfo(),
       user,
     });
+    if (result === 'created') void this.showWelcomeNotification();
     if (result !== 'unchanged') this.notifySubscription();
     return true;
+  }
+
+  /** İlk abonelikten sonra yerel karşılama bildirimi; abonelik başına bir kez (eski sağlayıcı davranışı). */
+  private async showWelcomeNotification(): Promise<void> {
+    const subscriptionId = this.store!.get().subscriptionId;
+    if (!this.push || !subscriptionId || this.store!.get().welcomeShownFor === subscriptionId) return;
+    const welcome = welcomeNotification(
+      this.options!.welcomeNotification,
+      this.language,
+      document.title,
+      window.location.origin,
+    );
+    if (!welcome) return;
+    this.store!.update({ welcomeShownFor: subscriptionId });
+    try {
+      await this.push.showLocalNotification(welcome.title, welcome.options);
+    } catch (err) {
+      this.logger.warn('karşılama bildirimi gösterilemedi', err);
+      this.reportError('welcome_failed', 'karşılama bildirimi gösterilemedi', err);
+    }
+  }
+
+  /** Özel bağlantı istemini (`promptOptions.customlink`) sayfadaki kapsayıcılara çizer. */
+  private renderCustomLinks(): void {
+    const custom = this.options?.promptOptions?.customlink;
+    if (!custom?.enabled || typeof document === 'undefined' || !this.store) return;
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => this.renderCustomLinks(), { once: true });
+      return;
+    }
+    renderCustomLinks(custom, this.language, this.User.pushSubscription.optedIn, () =>
+      (this.User.pushSubscription.optedIn
+        ? this.User.pushSubscription.optOut()
+        : this.User.pushSubscription.optIn()
+      ).catch((err: unknown) => this.logger.warn('özel bağlantı işlemi başarısız', err)),
+    );
   }
 
   private async subscribeNow(): Promise<void> {
@@ -726,6 +770,7 @@ export class HeroSignalSdk {
     const state = this.User.pushSubscription.state;
     for (const o of this.subscriptionObservers) o(state);
     this.syncIdentity();
+    this.renderCustomLinks();
   }
 
   private async toggleBell(): Promise<void> {
@@ -733,36 +778,62 @@ export class HeroSignalSdk {
     else await this.User.pushSubscription.optIn();
   }
 
-  /** İzin istemi: tetikler (sayfa görüntüleme, gecikme, kaydırma) sağlanınca slidedown veya native istem. */
+  /**
+   * İzin istemi: tetikler (sayfa görüntüleme, gecikme, kaydırma) sağlanınca slidedown veya native istem.
+   * Reddedilen istem geri çekilme takvimine göre (varsayılan 3/7/30 gün) yeniden gösterilir; `force` takvimi,
+   * sayfa görüntüleme ve gecikme koşullarını atlar (yalnızca izin henüz sorulmamışsa gösterilir).
+   */
   private async maybeShowSlidedown(
-    opts: NonNullable<InitOptions['slidedown']>,
+    opts: SlidedownOptions,
     mode: 'slidedown' | 'native' = 'slidedown',
+    force = false,
   ): Promise<void> {
     if (currentPermission() !== 'default') return;
     const state = this.store!.get();
-    if (state.pageViews < (opts.pageViews ?? 1)) return;
-    if (
-      state.slidedownDismissedAt &&
-      Date.now() - state.slidedownDismissedAt < (opts.retryDays ?? 3) * DAY_MS
-    )
-      return;
-    await new Promise((r) => setTimeout(r, (opts.delaySeconds ?? 0) * 1000));
-    if (opts.scrollPercent !== undefined && opts.scrollPercent > 0)
-      await waitForScrollPercent(Math.min(100, opts.scrollPercent));
-    if (currentPermission() !== 'default') return;
+    if (!force) {
+      if (state.pageViews < (opts.pageViews ?? 1)) return;
+      const schedule =
+        opts.retryDays !== undefined
+          ? [opts.retryDays]
+          : (this.options?.promptOptions?.backoffDays ?? DEFAULT_PROMPT_BACKOFF_DAYS);
+      // Eski sürüm kaydı: ret anı var, sayaç yok → bir ret sayılır.
+      const count = Math.max(state.promptDismissCount, state.slidedownDismissedAt ? 1 : 0);
+      if (!promptBackoffElapsed(count, state.slidedownDismissedAt, Date.now(), schedule)) return;
+      await new Promise((r) => setTimeout(r, (opts.delaySeconds ?? 0) * 1000));
+      if (opts.scrollPercent !== undefined && opts.scrollPercent > 0)
+        await waitForScrollPercent(Math.min(100, opts.scrollPercent));
+      if (currentPermission() !== 'default') return;
+    }
     if (mode === 'native') {
-      await this.Notifications.requestPermission();
+      // Native istem kapatıldıysa (karar verilmedi) bir ret sayılır.
+      if ((await this.Notifications.requestPermission()) === 'default') this.recordPromptDismissed();
       return;
     }
     const result = await showSlidedown(opts, this.language, this.store!.get().tags);
     if (!result.accepted) {
-      this.store!.update({ slidedownDismissedAt: Date.now() });
+      this.recordPromptDismissed();
       return;
     }
     await this.Notifications.requestPermission();
     // Kategori seçimi tag olarak yazılır (kullanıcı oluşunca kuyruk gönderir).
     if (Object.keys(result.tags).length > 0)
       this.enqueue({ type: 'tags', tags: result.tags, at: Date.now() });
+  }
+
+  private recordPromptDismissed(): void {
+    const state = this.store!.get();
+    this.store!.update({
+      slidedownDismissedAt: Date.now(),
+      promptDismissCount: Math.max(state.promptDismissCount, state.slidedownDismissedAt ? 1 : 0) + 1,
+    });
+  }
+
+  /** Init `slidedown`, yoksa dashboard istemi, o da yoksa varsayılan metinler. */
+  private slidedownOptions(): SlidedownOptions {
+    const remote = this.config?.web.prompt;
+    return (
+      this.options?.slidedown ?? (remote ? slidedownFromRemote(remote, this.language) : {})
+    );
   }
 
   // --- Public API ---
@@ -965,6 +1036,23 @@ export class HeroSignalSdk {
       this.foregroundListeners.add(cb);
       return () => this.foregroundListeners.delete(cb);
     },
+  };
+
+  /** İzin istemleri (eski sağlayıcı `Slidedown`). */
+  readonly Slidedown = {
+    /**
+     * Slidedown istemini gösterir. Varsayılan olarak geri çekilme takvimine ve tetiklere uyar;
+     * `{ force: true }` bunları atlar (izin zaten verildi/reddedildiyse yine gösterilmez).
+     */
+    promptPush: async (options?: { force?: boolean }): Promise<void> => {
+      this.assertReady();
+      await this.maybeShowSlidedown(this.slidedownOptions(), 'slidedown', options?.force === true);
+    },
+  };
+
+  /** Özel bağlantı istemi: sonradan eklenen `.herosignal-customlink-container` öğeleri için yeniden çizer. */
+  readonly CustomLink = {
+    render: (): void => this.renderCustomLinks(),
   };
 
   readonly Session = {

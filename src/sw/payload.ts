@@ -100,6 +100,39 @@ export function resolveClickUrl(data: { url?: string; actions?: { action: string
   return data.url;
 }
 
+/**
+ * Tıklamada kullanılacak açık sekme (eski sağlayıcı `notificationClickHandlerMatch`/`Action`).
+ * `exact`: URL'si hedefle birebir aynı sekme öne getirilir (gezinme gerekmez). `origin`: hedefle aynı origin'deki
+ * ilk sekme kullanılır; `navigate` ise sekme hedefe götürülür, `focus` ise yalnızca öne getirilir.
+ * Eşleşme yoksa null (yeni pencere açılır).
+ */
+export function pickClickTarget(
+  clientUrls: readonly string[],
+  url: string,
+  match: string | null | undefined,
+  action: string | null | undefined,
+): { index: number; navigate: boolean } | null {
+  let target: URL;
+  try {
+    target = new URL(url);
+  } catch {
+    return null;
+  }
+  const parsed = clientUrls.map((u) => {
+    try {
+      return new URL(u);
+    } catch {
+      return null;
+    }
+  });
+  const exact = parsed.findIndex((u) => u?.href === target.href);
+  if (match !== 'origin') return exact >= 0 ? { index: exact, navigate: false } : null;
+  if (exact >= 0) return { index: exact, navigate: false };
+  const index = parsed.findIndex((u) => u?.origin === target.origin);
+  if (index < 0) return null;
+  return { index, navigate: action !== 'focus' };
+}
+
 /** Teslimat geri bildirimi yeniden deneme beklemeleri (ms); toplam 3 deneme. */
 export const FEEDBACK_BACKOFF_MS = [500, 1500];
 
