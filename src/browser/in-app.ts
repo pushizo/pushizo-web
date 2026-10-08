@@ -2,9 +2,12 @@ import { fetchInAppMessages, type SdkApi } from '../core/api.js';
 import { isNetworkError } from '../core/errors.js';
 import {
   frequencyAllows,
+  globalIntervalAllows,
+  nextSessionDurationDelay,
   pickMessage,
   safeDeeplink,
   safeHttpUrl,
+  type GlobalInterval,
   type TriggerContext,
 } from '../core/in-app-logic.js';
 import type { Logger } from '../core/logger.js';
@@ -37,6 +40,12 @@ export interface InAppHost {
   subscriptionId: () => string | null;
   enqueue: (op: InAppEventOp) => void;
   addTags: (tags: Record<string, string>) => void;
+  /** `push_prompt` aksiyonu: yerel push izin istemi (mevcut `Notifications.requestPermission` akışı). */
+  requestPushPermission: () => Promise<unknown>;
+  /** `outcome` aksiyonu: olay gönderimi (mevcut `Session.sendEvent`). */
+  sendOutcome: (name: string, value?: number) => void;
+  /** App geneli gösterim aralığı (`config.in_app.min_interval_seconds`); yoksa 0. */
+  globalMinIntervalSeconds: () => number;
   reportError: (code: string, message: string, err?: unknown) => void;
   /** Testler için değiştirilebilir. */
   now?: () => number;
@@ -69,6 +78,10 @@ export class InAppManager {
   private pausedFlag = false;
   private started = false;
   private interval: ReturnType<typeof setInterval> | null = null;
+  /** Geçerli oturumun başlangıcı (epoch ms); `session_duration` koşulları buna göre ölçülür. */
+  private sessionStartedAt: number | null = null;
+  /** Bir sonraki `session_duration` eşiği için zamanlayıcı. */
+  private durationTimer: ReturnType<typeof setTimeout> | null = null;
   readonly clickListeners = new Set<(event: InAppClickEvent) => void>();
   readonly lifecycleListeners = new Set<InAppLifecycleListener>();
 
@@ -92,8 +105,39 @@ export class InAppManager {
   destroy(): void {
     if (this.interval) clearInterval(this.interval);
     this.interval = null;
+    this.clearDurationTimer();
     this.started = false;
     this.closeCurrent();
+  }
+
+  /** Geçerli oturumun süresi (saniye); oturum başlamadıysa 0. */
+  private sessionElapsedSeconds(): number {
+    if (this.sessionStartedAt === null) return 0;
+    return Math.max(0, Math.floor((this.now() - this.sessionStartedAt) / 1000));
+  }
+
+  private clearDurationTimer(): void {
+    if (this.durationTimer) clearTimeout(this.durationTimer);
+    this.durationTimer = null;
+  }
+
+  /** En yakın dolmamış `session_duration` eşiğinde yeniden değerlendirme planlar. */
+  private scheduleDurationTimer(): void {
+    this.clearDurationTimer();
+    if (!this.started || this.sessionStartedAt === null || typeof setTimeout !== 'function') return;
+    const delay = nextSessionDurationDelay(this.messages, this.sessionElapsedSeconds());
+    if (delay === null) return;
+    this.durationTimer = setTimeout(() => {
+      this.durationTimer = null;
+      void this.evaluate({});
+    }, delay * 1000);
+  }
+
+  private globalInterval(): GlobalInterval {
+    return {
+      minIntervalSeconds: this.host.globalMinIntervalSeconds(),
+      lastImpressionAt: this.host.store()?.get().inAppLastImpressionAt ?? null,
+    };
   }
 
   get paused(): boolean {
@@ -155,7 +199,14 @@ export class InAppManager {
   /** Yeni oturum: liste yenilenir ve `session_start` koşulları değerlendirilir. */
   onSessionStart(): void {
     this.sessionStartPending = true;
+    this.sessionStartedAt = this.now();
     void this.refresh(true).then(() => this.evaluate({}));
+  }
+
+  /** Oturum bitti: süre koşulları sıfırlanır (yeni oturumda yeniden sayılır). */
+  onSessionEnd(): void {
+    this.sessionStartedAt = null;
+    this.clearDurationTimer();
   }
 
   /** `Session.sendEvent` adı. */
@@ -202,6 +253,7 @@ export class InAppManager {
         this.loaded = true;
         this.nextFetchAt = this.now() + IN_APP_REFRESH_MS;
         this.pruneLocal();
+        this.scheduleDurationTimer();
         this.host.logger.debug(`in-app listesi yenilendi (${this.messages.length} mesaj)`);
       })
       .catch((err: unknown) => {
@@ -245,8 +297,17 @@ export class InAppManager {
       eventName: reason.eventName,
       screen: this.screen,
       triggers: this.triggerValues,
+      sessionElapsedSeconds: this.sessionElapsedSeconds(),
     };
-    const message = pickMessage(this.messages, ctx, store?.get().inAppLocal ?? {}, this.now());
+    // Henüz dolmamış süre eşikleri için zamanlayıcı (liste veya oturum değişince yeniden kurulur).
+    this.scheduleDurationTimer();
+    const message = pickMessage(
+      this.messages,
+      ctx,
+      store?.get().inAppLocal ?? {},
+      this.now(),
+      this.globalInterval(),
+    );
     if (!message) return;
     if (this.showing) {
       if (this.showing.message.id !== message.id && !this.waiting.some((m) => m.id === message.id))
@@ -277,19 +338,22 @@ export class InAppManager {
     }
     this.showing = { message, handle };
     const local = store.get().inAppLocal;
+    const now = this.now();
     store.update({
       inAppLocal: {
         ...local,
-        [message.id]: { lastAt: this.now(), pending: (local[message.id]?.pending ?? 0) + 1 },
+        [message.id]: { lastAt: now, pending: (local[message.id]?.pending ?? 0) + 1 },
       },
+      // App geneli aralık: herhangi bir mesajın son gösterimi.
+      inAppLastImpressionAt: now,
     });
-    this.track(message.id, 'impression');
+    this.track(message, 'impression');
     this.emitLifecycle('didDisplay', event);
   }
 
   private handleButton(message: InAppMessage, button: InAppButtonBlock): void {
     if (this.showing?.message.id !== message.id) return;
-    this.track(message.id, 'click', button.id);
+    this.track(message, 'click', button.id);
     this.markInteracted(message);
     const action = button.action;
     const url = action.type === 'url' || action.type === 'deeplink' ? action.url : undefined;
@@ -321,6 +385,21 @@ export class InAppManager {
       case 'tags':
         if (action.tags && Object.keys(action.tags).length > 0) this.host.addTags(action.tags);
         break;
+      case 'push_prompt':
+        // Yerel izin istemi; sonucu abonelik akışı yönetir, hata burada yalnızca loglanır.
+        this.host.requestPushPermission().catch((err: unknown) => {
+          this.host.logger.warn('in-app push_prompt: izin istemi başarısız', err);
+          this.host.reportError('in_app_push_prompt_failed', 'in-app push izin istemi başarısız', err);
+        });
+        break;
+      case 'outcome':
+        if (typeof action.name === 'string' && action.name.trim())
+          this.host.sendOutcome(
+            action.name.trim(),
+            typeof action.value === 'number' && Number.isFinite(action.value) ? action.value : undefined,
+          );
+        else this.host.logger.warn('in-app: adı olmayan outcome aksiyonu yok sayıldı');
+        break;
       case 'dismiss':
         break;
     }
@@ -330,7 +409,7 @@ export class InAppManager {
     if (this.showing?.message.id !== message.id) return;
     // Otomatik kapanma kullanıcı etkileşimi değildir; `dismiss` olayı yalnızca kullanıcı kapatınca gider.
     if (byUser) {
-      this.track(message.id, 'dismiss');
+      this.track(message, 'dismiss');
       this.markInteracted(message);
     }
     this.closeCurrent();
@@ -366,19 +445,24 @@ export class InAppManager {
       .filter((m) => this.messages.some((x) => x.id === m.id))
       .sort((a, b) => b.priority - a.priority);
     this.waiting = [];
+    // App geneli aralık az önce kapanan mesajın gösterimiyle başlar; dolmadıysa bekleyenler atlanır.
+    if (!globalIntervalAllows(this.globalInterval(), now)) return;
     const next = candidates.find((m) => frequencyAllows(m, local[m.id], now));
     if (next) this.show(next);
   }
 
-  private track(messageId: string, eventType: InAppEventOp['eventType'], buttonId?: string): void {
+  private track(message: InAppMessage, eventType: InAppEventOp['eventType'], buttonId?: string): void {
     const subscriptionId = this.host.subscriptionId();
     if (!subscriptionId) return;
     this.host.enqueue({
       type: 'in_app_event',
-      messageId,
+      messageId: message.id,
       subscriptionId,
       eventType,
       ...(buttonId ? { buttonId } : {}),
+      ...(typeof message.variant_id === 'string' && message.variant_id
+        ? { variantId: message.variant_id }
+        : {}),
       at: this.now(),
     });
   }
@@ -399,7 +483,7 @@ function isRenderable(message: InAppMessage): boolean {
   return (
     !!message &&
     typeof message.id === 'string' &&
-    Array.isArray(message.triggers) &&
+    (Array.isArray(message.triggers) || Array.isArray(message.trigger_groups)) &&
     !!message.display &&
     Array.isArray(message.display.blocks) &&
     ['modal', 'banner_top', 'banner_bottom', 'fullscreen'].includes(message.display.layout)

@@ -7,11 +7,15 @@ import {
 } from '../core/contact.js';
 import {
   frequencyAllows,
+  globalIntervalAllows,
   matchesTriggerCondition,
+  nextSessionDurationDelay,
   pickMessage,
   safeColor,
   safeDeeplink,
   safeHttpUrl,
+  triggerGroupsMatch,
+  triggerGroupsOf,
   triggersMatch,
   type TriggerContext,
 } from '../core/in-app-logic.js';
@@ -135,6 +139,76 @@ describe('in-app tetik değerlendirme', () => {
     expect(triggersMatch(triggers, { ...ok, screen: 'home' })).toBe(false);
     expect(triggersMatch(triggers, { ...ok, triggers: { vip: 'no' } })).toBe(false);
     expect(triggersMatch(triggers, { ...ok, eventName: undefined })).toBe(false);
+  });
+});
+
+describe('in-app tetik grupları ve oturum süresi (ADR-0019 §7)', () => {
+  it('session_duration: oturum süresi eşiğe ulaşınca sağlanır', () => {
+    const t: InAppTrigger[] = [{ kind: 'session_duration', seconds: 30 }];
+    expect(triggersMatch(t, ctx())).toBe(false);
+    expect(triggersMatch(t, ctx({ sessionElapsedSeconds: 29 }))).toBe(false);
+    expect(triggersMatch(t, ctx({ sessionElapsedSeconds: 30 }))).toBe(true);
+    expect(triggersMatch(t, ctx({ sessionElapsedSeconds: 300 }))).toBe(true);
+  });
+
+  it('trigger_groups: gruplar VEYA, grup içi VE; yoksa triggers tek grup', () => {
+    const groups: InAppTrigger[][] = [
+      [{ kind: 'event', name: 'cart_viewed' }, { kind: 'screen', name: 'cart' }],
+      [{ kind: 'trigger', key: 'vip', op: 'eq', value: 'yes' }],
+    ];
+    expect(triggerGroupsMatch(groups, ctx({ eventName: 'cart_viewed', screen: 'cart' }))).toBe(true);
+    expect(triggerGroupsMatch(groups, ctx({ eventName: 'cart_viewed', screen: 'home' }))).toBe(false);
+    expect(triggerGroupsMatch(groups, ctx({ triggers: { vip: 'yes' } }))).toBe(true);
+    expect(triggerGroupsMatch(groups, ctx({ triggers: { vip: 'no' } }))).toBe(false);
+    // Grup listesi boşsa koşulsuz; boş grup da koşulsuzdur (geriye uyum: `triggers: []`).
+    expect(triggerGroupsMatch([], ctx())).toBe(true);
+    expect(triggerGroupsMatch([[]], ctx())).toBe(true);
+
+    const legacy = message({ triggers: [{ kind: 'event', name: 'x' }] });
+    expect(triggerGroupsOf(legacy)).toEqual([[{ kind: 'event', name: 'x' }]]);
+    const grouped = message({ triggers: [{ kind: 'event', name: 'x' }], trigger_groups: groups });
+    expect(triggerGroupsOf(grouped)).toEqual(groups);
+    expect(triggerGroupsOf({ triggers: [], trigger_groups: [] })).toEqual([[]]);
+  });
+
+  it('pickMessage grupları değerlendirir', () => {
+    const now = Date.parse('2026-10-07T12:00:00Z');
+    const list = [
+      message({
+        id: 'grouped',
+        priority: 5,
+        triggers: [{ kind: 'event', name: 'ignored_first_group' }],
+        trigger_groups: [[{ kind: 'event', name: 'a' }], [{ kind: 'session_duration', seconds: 10 }]],
+      }),
+    ];
+    expect(pickMessage(list, ctx({ eventName: 'a' }), {}, now)?.id).toBe('grouped');
+    expect(pickMessage(list, ctx({ sessionElapsedSeconds: 12 }), {}, now)?.id).toBe('grouped');
+    expect(pickMessage(list, ctx({ eventName: 'ignored_first_group' }), {}, now)).toBeNull();
+  });
+
+  it('nextSessionDurationDelay: henüz dolmamış en yakın eşik', () => {
+    const list = [
+      message({ triggers: [{ kind: 'session_duration', seconds: 60 }] }),
+      message({ triggers: [], trigger_groups: [[{ kind: 'session_duration', seconds: 20 }], [{ kind: 'event', name: 'x' }]] }),
+      message({ triggers: [{ kind: 'session_duration', seconds: 5 }] }),
+    ];
+    expect(nextSessionDurationDelay(list, 0)).toBe(5);
+    expect(nextSessionDurationDelay(list, 5)).toBe(15);
+    expect(nextSessionDurationDelay(list, 30)).toBe(30);
+    expect(nextSessionDurationDelay(list, 60)).toBeNull();
+    expect(nextSessionDurationDelay([message()], 0)).toBeNull();
+  });
+
+  it('app geneli aralık: son gösterimden beri süre dolmadıysa hiçbir mesaj seçilmez', () => {
+    const now = Date.parse('2026-10-07T12:00:00Z');
+    expect(globalIntervalAllows(undefined, now)).toBe(true);
+    expect(globalIntervalAllows({ minIntervalSeconds: 0, lastImpressionAt: now }, now)).toBe(true);
+    expect(globalIntervalAllows({ minIntervalSeconds: 60, lastImpressionAt: null }, now)).toBe(true);
+    expect(globalIntervalAllows({ minIntervalSeconds: 60, lastImpressionAt: now - 59_000 }, now)).toBe(false);
+    expect(globalIntervalAllows({ minIntervalSeconds: 60, lastImpressionAt: now - 60_000 }, now)).toBe(true);
+    const list = [message({ id: 'a' })];
+    expect(pickMessage(list, ctx(), {}, now, { minIntervalSeconds: 60, lastImpressionAt: now - 1000 })).toBeNull();
+    expect(pickMessage(list, ctx(), {}, now, { minIntervalSeconds: 60, lastImpressionAt: now - 61_000 })?.id).toBe('a');
   });
 });
 

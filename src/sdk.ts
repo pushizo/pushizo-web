@@ -7,6 +7,7 @@ import {
 } from './browser/push.js';
 import {
   DEFAULT_PROMPT_BACKOFF_DAYS,
+  collectsContact,
   mountBell,
   customLinkFromRemote,
   promptBackoffElapsed,
@@ -21,12 +22,17 @@ import { InAppManager } from './browser/in-app.js';
 import { SessionTracker } from './browser/session.js';
 import {
   ApiError,
+  categoryFromApi,
   deleteSubscription,
+  fetchPreferences,
   ownershipProof,
   postInAppEvent,
+  preferencesFromApi,
+  putPreferences,
   registerContact,
   SdkApi,
   type InboxAuth,
+  type PreferencesAuth,
   type RegisterResult,
   type SdkConfig,
   type UserResult,
@@ -55,10 +61,14 @@ import type {
   InitOptions,
   LogLevel,
   NotificationClickEvent,
+  PreferenceCategory,
+  PreferenceInput,
+  SlidedownCollect,
   SlidedownOptions,
   PermissionState,
   PushSubscriptionState,
   QueuedOperation,
+  UserPreferences,
   WebPushPayload,
   WorkerMessage,
 } from './core/types.js';
@@ -95,6 +105,10 @@ export class HeroSignalSdk {
     subscriptionId: () => this.primarySubscriptionId(),
     enqueue: (op) => this.enqueue(op),
     addTags: (tags) => this.User.addTags(tags),
+    // `push_prompt`: mevcut izin + abonelik akışı; `outcome`: mevcut olay API'si.
+    requestPushPermission: () => this.Notifications.requestPermission(),
+    sendOutcome: (name, value) => this.Session.sendEvent(name, undefined, value),
+    globalMinIntervalSeconds: () => this.config?.in_app?.min_interval_seconds ?? 0,
     reportError: (code, message, err) => this.reportError(code, message, err),
   });
   private readonly inbox = new InboxClient({
@@ -219,8 +233,10 @@ export class HeroSignalSdk {
         this.enqueue({ type: 'session_start', at: Date.now() });
         this.inApp.onSessionStart();
       },
-      (duration) =>
-        this.enqueue({ type: 'session_end', durationSeconds: duration, at: Date.now() }),
+      (duration) => {
+        this.inApp.onSessionEnd();
+        this.sendSessionEnd(duration);
+      },
       this.config?.session.timeout_seconds ?? 30,
     );
     this.session.attach();
@@ -387,6 +403,52 @@ export class HeroSignalSdk {
     };
   }
 
+  /** `POST /sessions` gövdesi (başlangıç: süresiz; bitiş: `duration_seconds`); sahiplik kanıtı eklenir. */
+  private sessionBody(durationSeconds?: number): Record<string, unknown> | null {
+    const state = this.store!.get();
+    if (!state.subscriptionId) return null;
+    // Oturumda sürüm bilgisi de güncellenir (docs/plan/06 "Token yaşam döngüsü").
+    const appVersion = this.appVersion();
+    return {
+      subscription_id: state.subscriptionId,
+      ...(durationSeconds !== undefined ? { duration_seconds: durationSeconds } : {}),
+      sdk_version: SDK_VERSION,
+      ...(appVersion ? { app_version: appVersion } : {}),
+      ...ownershipProof(state.tokenHash, state.identityHash),
+    };
+  }
+
+  /**
+   * Oturum bitişi (`pagehide` / zaman aşımı): sayfa kapanırken kuyruk sırasını beklemeden doğrudan
+   * `keepalive` fetch ile gönderilir (ADR-0019 §8; istek pagehide içinde eşzamanlı başlatılır).
+   * Geçici hatada işlem kuyruğa yazılır ve sonraki açılışta yeniden denenir.
+   */
+  private sendSessionEnd(durationSeconds: number): void {
+    const body = this.sessionBody(durationSeconds);
+    if (!body || !this.api) return;
+    this.api.request('POST', '/sessions', body).catch((err: unknown) => {
+      if (err instanceof ApiError && !err.retryable) {
+        this.reportError('operation_rejected', 'oturum bitişi sunucu tarafından reddedildi', err, {
+          operation: 'session_end',
+        });
+        return;
+      }
+      this.logger.debug('oturum bitişi gönderilemedi, kuyruğa alındı', err);
+      this.queue?.enqueue({ type: 'session_end', durationSeconds, at: Date.now() });
+    });
+  }
+
+  /** Verilen aboneliğin tercih/oturum uçları için sahiplik kanıtı (push: token özeti, e-posta/SMS: adres özeti). */
+  private preferencesAuth(): PreferencesAuth | null {
+    const subscriptionId = this.primarySubscriptionId();
+    if (!subscriptionId) return null;
+    const state = this.store!.get();
+    return {
+      subscription_id: subscriptionId,
+      ...ownershipProof(this.ownershipHashOf(subscriptionId), state.identityHash),
+    };
+  }
+
   // --- Kuyruk işlemleri ---
 
   private eventFlushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -441,16 +503,17 @@ export class HeroSignalSdk {
       }
       case 'session_start':
       case 'session_end': {
-        if (!state.subscriptionId) return;
-        // Oturumda sürüm bilgisi de güncellenir (docs/plan/06 "Token yaşam döngüsü").
-        const appVersion = this.appVersion();
-        await this.api!.request('POST', '/sessions', {
-          subscription_id: state.subscriptionId,
-          ...(op.type === 'session_end' ? { duration_seconds: op.durationSeconds } : {}),
-          sdk_version: SDK_VERSION,
-          ...(appVersion ? { app_version: appVersion } : {}),
-          ...ownershipProof(state.tokenHash, state.identityHash),
-        });
+        const body = this.sessionBody(op.type === 'session_end' ? op.durationSeconds : undefined);
+        if (!body) return;
+        await this.api!.request('POST', '/sessions', body);
+        return;
+      }
+      case 'preferences': {
+        // Tag/property işlemleriyle aynı kural: abonelik yoksa oluşturulmaya çalışılır, olmazsa yeniden denenir.
+        if (!this.primarySubscriptionId()) await this.ensureUser();
+        const auth = this.preferencesAuth();
+        if (!auth) throw new ApiError(0, 'NO_SUBSCRIPTION', 'abonelik yok');
+        await putPreferences(this.api!, auth, op.preferences);
         return;
       }
       case 'alias_add': {
@@ -497,6 +560,7 @@ export class HeroSignalSdk {
             subscription_id: op.subscriptionId,
             type: op.eventType,
             ...(op.buttonId ? { button_id: op.buttonId } : {}),
+            ...(op.variantId ? { variant_id: op.variantId } : {}),
           });
         } catch (err) {
           // Kalıcı ret: kuyruk işlemi atar; yerel bekleyen gösterim de düşülür.
@@ -793,7 +857,11 @@ export class HeroSignalSdk {
     mode: 'slidedown' | 'native' = 'slidedown',
     force = false,
   ): Promise<void> {
-    if (currentPermission() !== 'default') return;
+    // E-posta/SMS toplama istemi (ADR-0019 §11): izin durumu yerine "yanıtlandı" bayrağı belirleyicidir.
+    const contact = collectsContact(opts.collect);
+    const alreadyAnswered = () =>
+      contact ? this.store!.get().contactPromptAnswered : currentPermission() !== 'default';
+    if (alreadyAnswered()) return;
     const state = this.store!.get();
     if (!force) {
       if (state.pageViews < (opts.pageViews ?? 1)) return;
@@ -801,36 +869,60 @@ export class HeroSignalSdk {
         opts.retryDays !== undefined
           ? [opts.retryDays]
           : (this.options?.promptOptions?.backoffDays ?? this.config?.web.prompt_backoff_days ?? DEFAULT_PROMPT_BACKOFF_DAYS);
+      const dismissedAt = contact ? state.contactPromptDismissedAt : state.slidedownDismissedAt;
       // Eski sürüm kaydı: ret anı var, sayaç yok → bir ret sayılır.
-      const count = Math.max(state.promptDismissCount, state.slidedownDismissedAt ? 1 : 0);
-      if (!promptBackoffElapsed(count, state.slidedownDismissedAt, Date.now(), schedule)) return;
+      const count = contact
+        ? state.contactPromptDismissCount
+        : Math.max(state.promptDismissCount, state.slidedownDismissedAt ? 1 : 0);
+      if (!promptBackoffElapsed(count, dismissedAt, Date.now(), schedule)) return;
       await new Promise((r) => setTimeout(r, (opts.delaySeconds ?? 0) * 1000));
       if (opts.scrollPercent !== undefined && opts.scrollPercent > 0)
         await waitForScrollPercent(Math.min(100, opts.scrollPercent));
-      if (currentPermission() !== 'default') return;
+      if (alreadyAnswered()) return;
     }
-    if (mode === 'native') {
+    if (mode === 'native' && !contact) {
       // Native istem kapatıldıysa (karar verilmedi) bir ret sayılır.
-      if ((await this.Notifications.requestPermission()) === 'default') this.recordPromptDismissed();
+      if ((await this.Notifications.requestPermission()) === 'default') this.recordPromptDismissed('push');
       return;
     }
     const result = await showSlidedown(opts, this.language, this.store!.get().tags);
     if (!result.accepted) {
-      this.recordPromptDismissed();
+      this.recordPromptDismissed(contact ? 'contact' : 'push');
       return;
     }
-    await this.Notifications.requestPermission();
+    if (contact) {
+      // Adresler mevcut kayıt akışıyla (çevrimdışı kuyruk) eklenir; slidedown zaten doğruladı.
+      if (result.email) this.User.addEmail(result.email);
+      if (result.sms) this.User.addSms(result.sms);
+      this.store!.update({ contactPromptAnswered: true });
+    } else {
+      await this.Notifications.requestPermission();
+    }
     // Kategori seçimi tag olarak yazılır (kullanıcı oluşunca kuyruk gönderir).
     if (Object.keys(result.tags).length > 0)
       this.enqueue({ type: 'tags', tags: result.tags, at: Date.now() });
   }
 
-  private recordPromptDismissed(): void {
+  /** Ret kaydı: push istemi ve e-posta/SMS istemi ayrı sayaç/zaman tutar, aynı geri çekilme takvimini kullanır. */
+  private recordPromptDismissed(kind: 'push' | 'contact'): void {
     const state = this.store!.get();
+    if (kind === 'contact') {
+      this.store!.update({
+        contactPromptDismissedAt: Date.now(),
+        contactPromptDismissCount: state.contactPromptDismissCount + 1,
+      });
+      return;
+    }
     this.store!.update({
       slidedownDismissedAt: Date.now(),
       promptDismissCount: Math.max(state.promptDismissCount, state.slidedownDismissedAt ? 1 : 0) + 1,
     });
+  }
+
+  /** `Slidedown.promptEmail/promptSms/promptEmailAndSms`: slidedown seçenekleri + istenen kanal. */
+  private async promptContact(collect: SlidedownCollect, force: boolean): Promise<void> {
+    this.assertReady();
+    await this.maybeShowSlidedown({ ...this.slidedownOptions(), collect }, 'slidedown', force);
   }
 
   /** Init `slidedown`, yoksa dashboard istemi, o da yoksa varsayılan metinler. */
@@ -961,6 +1053,40 @@ export class HeroSignalSdk {
     addSms: (phone: string): void => this.enqueueContact('contact_add', 'sms', phone),
     /** Bu cihazda eklenen SMS aboneliğini siler. */
     removeSms: (phone: string): void => this.enqueueContact('contact_remove', 'sms', phone),
+    /**
+     * Kullanıcı tercihleri (ADR-0019 §4): kategori × kanal opt-in durumu ve app kategorileri.
+     * Abonelik (push ya da e-posta/SMS) ve sahiplik kanıtı gerekir; yoksa açıklayıcı hata fırlatılır.
+     */
+    getPreferences: async (): Promise<UserPreferences> => {
+      this.assertReady();
+      const auth = this.preferencesAuth();
+      if (!auth) throw new Error('Tercihler için abonelik gerekli (push, e-posta veya SMS).');
+      return preferencesFromApi(await fetchPreferences(this.api!, auth));
+    },
+    /**
+     * Tercihleri yazar (`channel` yoksa tüm kanallar). Diğer kullanıcı işlemleri gibi çevrimdışı kuyruğa
+     * alınır; abonelik oluşunca gönderilir.
+     */
+    setPreferences: (preferences: PreferenceInput[]): void => {
+      this.assertReady();
+      const list = Array.isArray(preferences) ? preferences : [];
+      if (list.length === 0 || list.length > 100)
+        throw new Error('setPreferences: 1-100 tercih gerekli.');
+      const normalized: PreferenceInput[] = list.map((p) => {
+        const category = String(p?.category ?? '').trim();
+        if (!category || category.length > 64)
+          throw new Error('setPreferences: geçersiz kategori anahtarı.');
+        return {
+          category,
+          optedIn: p.optedIn === true,
+          ...(p.channel !== undefined ? { channel: p.channel ?? null } : {}),
+        };
+      });
+      this.enqueue({ type: 'preferences', preferences: normalized, at: Date.now() });
+    },
+    /** `GET /config` ile gelen mesaj kategorileri (tercih merkezi arayüzü için; ağ çağrısı yapmaz). */
+    getCategories: (): PreferenceCategory[] =>
+      (this.config?.categories ?? []).map(categoryFromApi),
     get externalId(): string | null {
       return sdkRef.store?.get().externalId ?? null;
     },
@@ -1051,8 +1177,21 @@ export class HeroSignalSdk {
      */
     promptPush: async (options?: { force?: boolean }): Promise<void> => {
       this.assertReady();
-      await this.maybeShowSlidedown(this.slidedownOptions(), 'slidedown', options?.force === true);
+      await this.maybeShowSlidedown(
+        { ...this.slidedownOptions(), collect: 'push' },
+        'slidedown',
+        options?.force === true,
+      );
     },
+    /** E-posta toplama istemi (ADR-0019 §11); kabulde `User.addEmail`. Yanıtlandıysa gösterilmez. */
+    promptEmail: (options?: { force?: boolean }): Promise<void> =>
+      this.promptContact('email', options?.force === true),
+    /** SMS toplama istemi; kabulde `User.addSms`. */
+    promptSms: (options?: { force?: boolean }): Promise<void> =>
+      this.promptContact('sms', options?.force === true),
+    /** E-posta + SMS toplama istemi (tek kutu, iki alan). */
+    promptEmailAndSms: (options?: { force?: boolean }): Promise<void> =>
+      this.promptContact('email_sms', options?.force === true),
   };
 
   /** Özel bağlantı istemi: sonradan eklenen `.herosignal-customlink-container` öğeleri için yeniden çizer. */

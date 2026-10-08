@@ -1,5 +1,13 @@
 import type { RemoteCustomLinkConfig, RemotePromptConfig, RemoteWelcomeConfig } from '../core/api.js';
-import type { BellOptions, CustomLinkOptions, SlidedownCategory, SlidedownOptions, WelcomeNotificationOptions } from '../core/types.js';
+import { normalizeEmail, normalizePhone } from '../core/contact.js';
+import type {
+  BellOptions,
+  CustomLinkOptions,
+  SlidedownCategory,
+  SlidedownCollect,
+  SlidedownOptions,
+  WelcomeNotificationOptions,
+} from '../core/types.js';
 
 const TEXTS = {
   tr: {
@@ -10,6 +18,14 @@ const TEXTS = {
     categoriesTitle: 'Hangi konularda bildirim almak istersiniz?',
     subscribed: 'Bildirimlere abonesiniz',
     unsubscribed: 'Bildirimlere abone ol',
+    // E-posta/SMS toplama istemi (ADR-0019 §11)
+    collectTitle: 'Haberdar olmak ister misiniz?',
+    collectMessage: 'Kampanya ve güncellemeleri size ulaştıralım.',
+    collectAccept: 'Kaydol',
+    emailLabel: 'E-posta adresi',
+    smsLabel: 'Telefon numarası',
+    invalidEmail: 'Geçerli bir e-posta adresi girin (ör. ad@ornek.com).',
+    invalidPhone: 'Telefonu uluslararası biçimde girin (ör. +905321234567).',
   },
   en: {
     title: 'Enable notifications?',
@@ -19,6 +35,13 @@ const TEXTS = {
     categoriesTitle: 'Which topics would you like to hear about?',
     subscribed: 'You are subscribed to notifications',
     unsubscribed: 'Subscribe to notifications',
+    collectTitle: 'Stay in the loop?',
+    collectMessage: 'Get offers and updates delivered to you.',
+    collectAccept: 'Sign up',
+    emailLabel: 'Email address',
+    smsLabel: 'Phone number',
+    invalidEmail: 'Enter a valid email address (e.g. name@example.com).',
+    invalidPhone: 'Enter the phone in international format (e.g. +14155550100).',
   },
 };
 
@@ -36,6 +59,13 @@ const CSS = `
 .hs-slidedown legend{padding:0;margin:0 0 6px;font-weight:600;font-size:13px}
 .hs-slidedown .hs-category{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer}
 .hs-slidedown .hs-category input{width:16px;height:16px;margin:0;accent-color:#2563eb}
+.hs-slidedown .hs-field{display:block;margin:0 0 10px}
+.hs-slidedown .hs-field span{display:block;font-size:12px;font-weight:600;margin:0 0 4px;opacity:.85}
+.hs-slidedown .hs-field input{box-sizing:border-box;width:100%;border:1px solid rgba(127,127,127,.45);border-radius:8px;padding:8px 10px;font:inherit;background:transparent;color:inherit}
+.hs-slidedown .hs-field input:focus{outline:2px solid #2563eb;outline-offset:1px}
+.hs-slidedown .hs-field input[aria-invalid="true"]{border-color:#dc2626}
+.hs-slidedown .hs-error{margin:-4px 0 10px;color:#dc2626;font-size:12px}
+.hs-slidedown .hs-error:empty{display:none}
 .hs-slidedown .hs-actions{display:flex;gap:8px;justify-content:flex-end}
 .hs-slidedown button{border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
 .hs-slidedown .hs-accept{background:#2563eb;color:#fff}
@@ -95,7 +125,13 @@ export function slidedownFromRemote(prompt: RemotePromptConfig, language: string
       ?.map((c) => ({ tag: c.tag, label: pickLocalized(c.label, language) ?? c.tag }))
       .filter((c) => c.tag),
     accentColor: prompt.accentColor,
+    collect: prompt.collect,
   };
+}
+
+/** Slidedown'un e-posta/SMS alanı gösterip göstermediği (`collect` push veya yoksa klasik izin istemi). */
+export function collectsContact(collect: SlidedownCollect | undefined): boolean {
+  return collect === 'email' || collect === 'sms' || collect === 'email_sms';
 }
 
 /** Yalnızca #rrggbb kabul edilir (CSS enjeksiyonuna karşı). */
@@ -127,6 +163,10 @@ export interface SlidedownResult {
   accepted: boolean;
   /** İşaretli kategori → "1", işareti kaldırılan → null (tag silinir). */
   tags: Record<string, string | null>;
+  /** `collect` e-posta içeriyorsa ve kabul edildiyse normalize edilmiş adres. */
+  email?: string;
+  /** `collect` SMS içeriyorsa ve kabul edildiyse E.164 telefon. */
+  sms?: string;
 }
 
 /** Sayfanın kaydırılma yüzdesi (0-100); kaydırılamayan sayfa tamamen görünür sayılır (100). */
@@ -166,6 +206,9 @@ export function categoriesToTags(categories: SlidedownCategory[], checked: Reado
 export function showSlidedown(options: SlidedownOptions, language: string, currentTags: Record<string, string> = {}): Promise<SlidedownResult> {
   ensureStyle();
   const t = texts(language);
+  const collect = collectsContact(options.collect) ? options.collect! : 'push';
+  const wantsEmail = collect === 'email' || collect === 'email_sms';
+  const wantsSms = collect === 'sms' || collect === 'email_sms';
   const categories = (options.categories ?? []).filter((c) => c.tag && c.label);
   const categoriesHtml = categories.length
     ? `<fieldset class="hs-categories"><legend>${escapeHtml(options.categoriesTitle ?? t.categoriesTitle)}</legend>${categories
@@ -175,32 +218,88 @@ export function showSlidedown(options: SlidedownOptions, language: string, curre
         })
         .join('')}</fieldset>`
     : '';
+  // E-posta/SMS alanları (ADR-0019 §11): yalnızca `collect` istediğinde çizilir.
+  const field = (kind: 'email' | 'sms') =>
+    `<label class="hs-field hs-field-${kind}"><span>${escapeHtml(
+      kind === 'email' ? (options.emailLabel ?? t.emailLabel) : (options.smsLabel ?? t.smsLabel),
+    )}</span><input type="${kind === 'email' ? 'email' : 'tel'}" name="hs-${kind}" autocomplete="${
+      kind === 'email' ? 'email' : 'tel'
+    }" inputmode="${kind === 'email' ? 'email' : 'tel'}" placeholder="${
+      kind === 'email' ? 'name@example.com' : '+90 532 123 45 67'
+    }" aria-invalid="false"></label>`;
+  const fieldsHtml = `${wantsEmail ? field('email') : ''}${wantsSms ? field('sms') : ''}${
+    wantsEmail || wantsSms ? '<p class="hs-error" role="alert" aria-live="assertive"></p>' : ''
+  }`;
+  const isCollect = wantsEmail || wantsSms;
   return new Promise((resolve) => {
     const box = document.createElement('div');
     box.className = 'hs-slidedown';
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-live', 'polite');
+    box.setAttribute('data-hs-collect', collect);
     box.innerHTML = `
-      <h3>${escapeHtml(options.title ?? t.title)}</h3>
-      <p>${escapeHtml(options.message ?? t.message)}</p>${categoriesHtml}
+      <h3>${escapeHtml(options.title ?? (isCollect ? t.collectTitle : t.title))}</h3>
+      <p>${escapeHtml(options.message ?? (isCollect ? t.collectMessage : t.message))}</p>${fieldsHtml}${categoriesHtml}
       <div class="hs-actions">
         <button type="button" class="hs-cancel">${escapeHtml(options.cancelText ?? t.cancel)}</button>
-        <button type="button" class="hs-accept">${escapeHtml(options.acceptText ?? t.accept)}</button>
+        <button type="button" class="hs-accept">${escapeHtml(options.acceptText ?? (isCollect ? t.collectAccept : t.accept))}</button>
       </div>`;
-    const done = (accepted: boolean) => {
+    const done = (accepted: boolean, contact: { email?: string; sms?: string } = {}) => {
       const checked = new Set(
         Array.from(box.querySelectorAll<HTMLInputElement>('.hs-category input'))
           .filter((input) => input.checked)
           .map((input) => input.value),
       );
       box.remove();
-      resolve({ accepted, tags: accepted && categories.length ? categoriesToTags(categories, checked) : {} });
+      resolve({
+        accepted,
+        tags: accepted && categories.length ? categoriesToTags(categories, checked) : {},
+        ...(accepted ? contact : {}),
+      });
+    };
+    /** Alanları doğrular; geçersizse hata gösterir ve null döner. Adres mesaja/loga yazılmaz. */
+    const readContact = (): { email?: string; sms?: string } | null => {
+      const error = box.querySelector<HTMLElement>('.hs-error');
+      const emailInput = box.querySelector<HTMLInputElement>('input[name="hs-email"]');
+      const smsInput = box.querySelector<HTMLInputElement>('input[name="hs-sms"]');
+      const email = emailInput ? normalizeEmail(emailInput.value) : null;
+      const sms = smsInput ? normalizePhone(smsInput.value) : null;
+      if (emailInput) emailInput.setAttribute('aria-invalid', String(email === null));
+      if (smsInput) smsInput.setAttribute('aria-invalid', String(sms === null));
+      if (emailInput && email === null) {
+        if (error) error.textContent = t.invalidEmail;
+        emailInput.focus();
+        return null;
+      }
+      if (smsInput && sms === null) {
+        if (error) error.textContent = t.invalidPhone;
+        smsInput.focus();
+        return null;
+      }
+      if (error) error.textContent = '';
+      return { ...(email ? { email } : {}), ...(sms ? { sms } : {}) };
+    };
+    const accept = () => {
+      if (!isCollect) {
+        done(true);
+        return;
+      }
+      const contact = readContact();
+      if (contact) done(true, contact);
     };
     const accent = safeAccentColor(options.accentColor);
     if (accent) box.querySelector<HTMLElement>('.hs-accept')!.style.background = accent;
-    box.querySelector('.hs-accept')!.addEventListener('click', () => done(true));
+    box.querySelector('.hs-accept')!.addEventListener('click', accept);
     box.querySelector('.hs-cancel')!.addEventListener('click', () => done(false));
+    // Enter ile gönderim (alanlar form içinde değil).
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.target as HTMLElement | null)?.tagName === 'INPUT' && isCollect) {
+        e.preventDefault();
+        accept();
+      }
+    });
     document.body.appendChild(box);
+    if (isCollect) box.querySelector<HTMLInputElement>('.hs-field input')?.focus();
   });
 }
 

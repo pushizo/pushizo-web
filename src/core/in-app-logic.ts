@@ -13,6 +13,15 @@ export interface TriggerContext {
   /** Geçerli ekran (`InAppMessages.setScreen`). */
   screen: string | null;
   triggers: Readonly<Record<string, InAppTriggerValue>>;
+  /** Geçerli oturumun süresi (saniye); `session_duration` koşulları için. Oturum yoksa 0. */
+  sessionElapsedSeconds?: number;
+}
+
+/** App geneli gösterim aralığı (ADR-0019 §7): herhangi bir mesajın son gösteriminden beri geçmesi gereken süre. */
+export interface GlobalInterval {
+  minIntervalSeconds: number;
+  /** Herhangi bir in-app mesajın son gösterim anı (epoch ms); yoksa null. */
+  lastImpressionAt: number | null;
 }
 
 function asNumber(value: unknown): number | null {
@@ -72,10 +81,51 @@ export function triggersMatch(triggers: InAppTrigger[], ctx: TriggerContext): bo
         return ctx.screen !== null && ctx.screen === t.name;
       case 'trigger':
         return matchesTriggerCondition(t, ctx.triggers);
+      case 'session_duration':
+        return (ctx.sessionElapsedSeconds ?? 0) >= t.seconds;
       default:
         return false;
     }
   });
+}
+
+/** Mesajın tetik grupları: `trigger_groups` varsa o, yoksa geriye uyum için `[triggers]`. */
+export function triggerGroupsOf(message: Pick<InAppMessage, 'triggers' | 'trigger_groups'>): InAppTrigger[][] {
+  const groups = message.trigger_groups;
+  if (Array.isArray(groups) && groups.length > 0) return groups.filter((g) => Array.isArray(g));
+  return [Array.isArray(message.triggers) ? message.triggers : []];
+}
+
+/** Gruplar VEYA ile bağlıdır: herhangi bir grubun tüm koşulları sağlanıyorsa mesaj uygundur. */
+export function triggerGroupsMatch(groups: InAppTrigger[][], ctx: TriggerContext): boolean {
+  if (groups.length === 0) return true;
+  return groups.some((group) => triggersMatch(group, ctx));
+}
+
+/**
+ * `session_duration` koşulları için bir sonraki değerlendirmeye kalan süre (saniye): henüz dolmamış
+ * en yakın eşik. Böyle bir koşul yoksa null. Hak kalmamış mesajlar yine de sayılır (ucuz; değerlendirme süzer).
+ */
+export function nextSessionDurationDelay(
+  messages: Pick<InAppMessage, 'triggers' | 'trigger_groups'>[],
+  elapsedSeconds: number,
+): number | null {
+  let best: number | null = null;
+  for (const m of messages)
+    for (const group of triggerGroupsOf(m))
+      for (const t of group) {
+        if (t.kind !== 'session_duration') continue;
+        const remaining = t.seconds - elapsedSeconds;
+        if (remaining <= 0) continue;
+        if (best === null || remaining < best) best = remaining;
+      }
+  return best;
+}
+
+/** App geneli aralık: son gösterimden beri `minIntervalSeconds` geçmediyse hiçbir mesaj gösterilmez. */
+export function globalIntervalAllows(global: GlobalInterval | undefined, now: number): boolean {
+  if (!global || global.minIntervalSeconds <= 0 || !global.lastImpressionAt) return true;
+  return now - global.lastImpressionAt >= global.minIntervalSeconds * 1000;
 }
 
 /**
@@ -100,16 +150,21 @@ export function frequencyAllows(
   return true;
 }
 
-/** Uygun mesajlar arasından gösterilecek olan: önce `priority` (yüksek), eşitlikte listedeki sıra. */
+/**
+ * Uygun mesajlar arasından gösterilecek olan: önce `priority` (yüksek), eşitlikte listedeki sıra.
+ * App geneli aralık (`global`) dolmadıysa hiçbir mesaj seçilmez.
+ */
 export function pickMessage(
   messages: InAppMessage[],
   ctx: TriggerContext,
   local: Readonly<Record<string, InAppLocalRecord>>,
   now: number,
+  global?: GlobalInterval,
 ): InAppMessage | null {
+  if (!globalIntervalAllows(global, now)) return null;
   let best: InAppMessage | null = null;
   for (const m of messages) {
-    if (!triggersMatch(m.triggers, ctx) || !frequencyAllows(m, local[m.id], now)) continue;
+    if (!triggerGroupsMatch(triggerGroupsOf(m), ctx) || !frequencyAllows(m, local[m.id], now)) continue;
     if (!best || m.priority > best.priority) best = m;
   }
   return best;

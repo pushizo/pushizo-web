@@ -55,8 +55,20 @@ export interface WebPushPayload {
   hs?: HsPayloadMeta;
 }
 
+/**
+ * Slidedown'un ne topladığı (ADR-0019 §11): `push` (varsayılan) native izin istemine geçer;
+ * `email`, `sms`, `email_sms` adres alanı gösterir ve kabulde `User.addEmail`/`addSms` çağırır.
+ */
+export type SlidedownCollect = 'push' | 'email' | 'sms' | 'email_sms';
+
 export interface SlidedownOptions {
   enabled?: boolean;
+  /** Toplanacak kanal; verilmezse (veya `push`) mevcut push davranışı. */
+  collect?: SlidedownCollect;
+  /** E-posta alanı etiketi/yer tutucusu (varsayılan dile göre). */
+  emailLabel?: string;
+  /** Telefon alanı etiketi/yer tutucusu (varsayılan dile göre). */
+  smsLabel?: string;
   /** Sayfa yüklendikten kaç saniye sonra gösterilsin. */
   delaySeconds?: number;
   /** Kaçıncı sayfa görüntülemeden itibaren. */
@@ -218,6 +230,48 @@ export interface PersistedState {
   contactSubscriptions: ContactSubscription[];
   /** In-app sıklık için yerel gösterim kaydı (mesaj kimliği → kayıt). */
   inAppLocal: Record<string, InAppLocalRecord>;
+  /** Herhangi bir in-app mesajın son gösterim anı (epoch ms); app geneli `in_app.min_interval_seconds` için. */
+  inAppLastImpressionAt: number | null;
+  /** E-posta/SMS toplama istemi kabul edildi (bir daha gösterilmez). */
+  contactPromptAnswered: boolean;
+  /** E-posta/SMS toplama isteminin son reddi ve ret sayısı (push istemiyle aynı geri çekilme takvimi). */
+  contactPromptDismissedAt: number | null;
+  contactPromptDismissCount: number;
+}
+
+// --- Kullanıcı tercihleri (ADR-0019 §4) ---
+
+/** `GET /config` → `categories[]` ve tercih yanıtındaki kategori (ad/açıklama dil → metin). */
+export interface PreferenceCategory {
+  key: string;
+  name: Record<string, string>;
+  description: Record<string, string>;
+  /** Kategorinin geçerli olduğu kanallar; null = tüm kanallar. */
+  channels: string[] | null;
+  defaultOptedIn: boolean;
+}
+
+export interface UserPreference {
+  category: string;
+  /** null = tüm kanallar. */
+  channel: Channel | null;
+  optedIn: boolean;
+  /** Açık kayıt mı (false: kategori varsayılanından türetilmiş). */
+  explicit: boolean;
+  source: string | null;
+  updatedAt: string | null;
+}
+
+/** `User.setPreferences` girdisi; `channel` verilmezse tüm kanallar. */
+export interface PreferenceInput {
+  category: string;
+  optedIn: boolean;
+  channel?: Channel | null;
+}
+
+export interface UserPreferences {
+  preferences: UserPreference[];
+  categories: PreferenceCategory[];
 }
 
 /** E-posta/SMS kanalı (web SDK'nın eklediği ek abonelikler). */
@@ -250,18 +304,27 @@ export interface InAppLocalRecord {
 
 export type InAppTriggerOperator = 'eq' | 'neq' | 'exists' | 'gt' | 'lt';
 
-/** Mesajın gösterim koşulu; bir mesajın tüm koşulları aynı anda sağlanmalıdır. */
+/**
+ * Mesajın gösterim koşulu. Bir grup içindeki tüm koşullar aynı anda sağlanmalıdır (VE);
+ * `trigger_groups` ile gruplar VEYA ile bağlanır (ADR-0019 §7).
+ */
 export type InAppTrigger =
   | { kind: 'session_start' }
   | { kind: 'event'; name: string }
   | { kind: 'screen'; name: string }
-  | { kind: 'trigger'; key: string; op: InAppTriggerOperator; value?: string | number };
+  | { kind: 'trigger'; key: string; op: InAppTriggerOperator; value?: string | number }
+  /** Geçerli oturum en az bu kadar saniye sürdüyse sağlanır (zamanlayıcıyla yeniden değerlendirilir). */
+  | { kind: 'session_duration'; seconds: number };
 
 export type InAppAction =
   | { type: 'dismiss' }
   | { type: 'url'; url: string }
   | { type: 'deeplink'; url: string }
-  | { type: 'tags'; tags: Record<string, string> };
+  | { type: 'tags'; tags: Record<string, string> }
+  /** Yerel push izin istemini açar (`Notifications.requestPermission`), ardından mesaj kapanır. */
+  | { type: 'push_prompt' }
+  /** Olay (outcome) gönderir (`Session.sendEvent(name, undefined, value)`), ardından mesaj kapanır. */
+  | { type: 'outcome'; name: string; value?: number };
 
 export type InAppBlock =
   | { type: 'image'; url: string; alt: string | null }
@@ -291,7 +354,12 @@ export interface InAppDisplay {
 export interface InAppMessage {
   id: string;
   priority: number;
+  /** Geriye uyum: ilk tetik grubu. */
   triggers: InAppTrigger[];
+  /** Gruplar VEYA, grup içi VE; yoksa `[triggers]` kullanılır. */
+  trigger_groups?: InAppTrigger[][];
+  /** Sunucunun seçtiği görünüm varyantı; olaylarla geri gönderilir (A/B raporu). */
+  variant_id?: string | null;
   display: InAppDisplay;
   remaining_impressions: number;
   min_interval_seconds: number;
@@ -380,8 +448,12 @@ export type QueuedOperation =
       subscriptionId: string;
       eventType: 'impression' | 'click' | 'dismiss';
       buttonId?: string;
+      /** Mesajın gösterilen varyantı (A/B); sunucu `variant_id` döndürdüyse her olayda geri gider. */
+      variantId?: string;
       at: number;
     }
+  /** Kullanıcı tercihleri (`User.setPreferences`); gönderim anındaki abonelik kanıtıyla yazılır. */
+  | { type: 'preferences'; preferences: PreferenceInput[]; at: number }
   /** Kuyruk flush'ında ardışık olaylardan oluşturulan toplu gönderim (kalıcı saklanmaz). */
   | { type: 'event_batch'; events: Extract<QueuedOperation, { type: 'event' }>[]; at: number };
 

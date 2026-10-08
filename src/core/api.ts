@@ -1,5 +1,15 @@
 import type { Logger } from './logger.js';
-import type { ContactChannel, DeviceInfo, InAppMessage } from './types.js';
+import type {
+  Channel,
+  ContactChannel,
+  DeviceInfo,
+  InAppMessage,
+  PreferenceCategory,
+  PreferenceInput,
+  SlidedownCollect,
+  UserPreference,
+  UserPreferences,
+} from './types.js';
 
 export interface ApiOptions {
   baseUrl: string;
@@ -49,7 +59,7 @@ export class SdkApi {
     return `${this.options.baseUrl.replace(/\/$/, '')}/sdk/v1/apps/${encodeURIComponent(this.options.appId)}`;
   }
 
-  async request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+  async request<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
     let attempt = 0;
     for (;;) {
       try {
@@ -150,13 +160,89 @@ export function fetchInAppMessages(api: SdkApi, subscriptionId: string): Promise
   return api.request<SdkInAppList>('GET', `/in-app${queryString({ subscription_id: subscriptionId })}`);
 }
 
-/** In-app gösterim / tıklama / kapatma olayı (`click` için `button_id` zorunlu). */
+/** In-app gösterim / tıklama / kapatma olayı (`click` için `button_id` zorunlu; A/B için `variant_id`). */
 export function postInAppEvent(
   api: SdkApi,
   messageId: string,
-  body: { subscription_id: string; type: 'impression' | 'click' | 'dismiss'; button_id?: string },
+  body: {
+    subscription_id: string;
+    type: 'impression' | 'click' | 'dismiss';
+    button_id?: string;
+    variant_id?: string;
+  },
 ): Promise<void> {
   return api.request<void>('POST', `/in-app/${enc(messageId)}/events`, body);
+}
+
+// --- Kullanıcı tercihleri (ADR-0019 §4) ---
+
+/** Tercih uçlarının yetkilendirmesi: abonelik + sahiplik kanıtı (PATCH subscriptions kurallarıyla aynı). */
+export interface PreferencesAuth extends OwnershipProof {
+  subscription_id: string;
+}
+
+/** `GET /preferences` ve `PUT /preferences` yanıtı (API biçimi). */
+export interface SdkPreferences {
+  data: {
+    category: string;
+    channel: string | null;
+    opted_in: boolean;
+    explicit: boolean;
+    source: string | null;
+    updated_at: string | null;
+  }[];
+  categories: SdkCategory[];
+}
+
+/** `GET /config` → `categories[]` öğesi. */
+export interface SdkCategory {
+  key: string;
+  name: Record<string, string>;
+  description?: Record<string, string> | null;
+  channels: string[] | null;
+  default_opted_in: boolean;
+}
+
+export function fetchPreferences(api: SdkApi, auth: PreferencesAuth): Promise<SdkPreferences> {
+  return api.request<SdkPreferences>('GET', `/preferences${queryString({ ...auth })}`);
+}
+
+export function putPreferences(
+  api: SdkApi,
+  auth: PreferencesAuth,
+  preferences: PreferenceInput[],
+): Promise<SdkPreferences> {
+  return api.request<SdkPreferences>('PUT', '/preferences', {
+    ...auth,
+    preferences: preferences.map((p) => ({
+      category: p.category,
+      opted_in: p.optedIn,
+      ...(p.channel !== undefined ? { channel: p.channel } : {}),
+    })),
+  });
+}
+
+export function categoryFromApi(c: SdkCategory): PreferenceCategory {
+  return {
+    key: c.key,
+    name: c.name ?? {},
+    description: c.description ?? {},
+    channels: c.channels ?? null,
+    defaultOptedIn: c.default_opted_in === true,
+  };
+}
+
+/** API tercih yanıtını SDK biçimine (camelCase) çevirir. */
+export function preferencesFromApi(result: SdkPreferences): UserPreferences {
+  const preferences: UserPreference[] = (result.data ?? []).map((p) => ({
+    category: p.category,
+    channel: (p.channel as Channel | null) ?? null,
+    optedIn: p.opted_in,
+    explicit: p.explicit,
+    source: p.source ?? null,
+    updatedAt: p.updated_at ?? null,
+  }));
+  return { preferences, categories: (result.categories ?? []).map(categoryFromApi) };
 }
 
 /** Bildirim kutusu yetkilendirmesi: abonelik kullanıcıya ait olmalı; doğrulama zorunluysa `identity_hash`. */
@@ -261,6 +347,20 @@ export interface SdkConfig {
     prompt_backoff_days?: number[] | null;
   };
   session: { timeout_seconds: number };
+  /** App geneli in-app aralığı: son gösterimden beri en az bu kadar saniye geçmeden yeni mesaj gösterilmez. */
+  in_app?: { min_interval_seconds: number } | null;
+  /** Android bildirim kanalları (web'de kullanılmaz; sözleşme bütünlüğü için). */
+  android_channels?: {
+    id: string;
+    name: string;
+    description: string | null;
+    importance: string;
+    sound: string | null;
+    vibration: boolean;
+    group: string | null;
+  }[];
+  /** Mesaj kategorileri (tercih merkezi). */
+  categories?: SdkCategory[];
 }
 
 /** Dil kodu (2 harf) → metin. */
@@ -294,6 +394,8 @@ export interface RemotePromptConfig {
   categories?: { tag: string; label: LocalizedTexts<string> }[];
   /** Kabul düğmesi rengi (#rrggbb). */
   accentColor?: string;
+  /** Toplanacak kanal (ADR-0019 §11); yoksa push. */
+  collect?: SlidedownCollect;
 }
 
 export interface RegisterResult {

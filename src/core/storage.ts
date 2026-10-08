@@ -23,6 +23,10 @@ export const DEFAULT_STATE: PersistedState = {
   queue: [],
   contactSubscriptions: [],
   inAppLocal: {},
+  inAppLastImpressionAt: null,
+  contactPromptAnswered: false,
+  contactPromptDismissedAt: null,
+  contactPromptDismissCount: 0,
 };
 
 /** Bellek içi yedek: localStorage yoksa (gizli mod/kısıtlı tarayıcı) oturum süresince çalışır. */
