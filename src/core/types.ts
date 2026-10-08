@@ -69,7 +69,10 @@ export interface SlidedownOptions {
   categoriesTitle?: string;
   /** Kabul düğmesi rengi (#rrggbb); geçersiz değer yok sayılır. */
   accentColor?: string;
-  /** Reddedilince kaç gün sonra tekrar gösterilsin. */
+  /**
+   * Reddedilince kaç gün sonra tekrar gösterilsin (sabit süre). Verilmezse eski sağlayıcı geri çekilmesi
+   * uygulanır: 1. ret 3 gün, 2. ret 7 gün, sonrakiler 30 gün.
+   */
   retryDays?: number;
   title?: string;
   message?: string;
@@ -93,6 +96,44 @@ export interface BellOptions {
   unsubscribedText?: string;
 }
 
+/** Karşılama bildirimi (ilk abonelikte bir kez, yerel olarak gösterilir). Varsayılan açık. */
+export interface WelcomeNotificationOptions {
+  disable?: boolean;
+  /** Varsayılan: sayfa başlığı. */
+  title?: string;
+  /** Varsayılan: "Thanks for subscribing!" (dil Türkçe ise Türkçe karşılığı). */
+  message?: string;
+  /** Tıklanınca açılacak adres; varsayılan sitenin kökü. */
+  url?: string;
+}
+
+/** Bildirim tıklamasında açık pencere eşleştirme: tam URL veya yalnızca origin. */
+export type NotificationClickHandlerMatch = 'exact' | 'origin';
+/** Eşleşen pencerede: URL'ye git (`navigate`) veya yalnızca odaklan (`focus`). */
+export type NotificationClickHandlerAction = 'navigate' | 'focus';
+
+/** Service worker'a aktarılan tıklama davranışı. */
+export interface ClickBehavior {
+  match: NotificationClickHandlerMatch;
+  action: NotificationClickHandlerAction;
+}
+
+/** Özel bağlantı istemi (`.herosignal-customlink-container` öğelerine abone ol/çık düğmesi). */
+export interface CustomLinkOptions {
+  enabled?: boolean;
+  style?: 'button' | 'link';
+  size?: 'small' | 'medium' | 'large';
+  /** #rrggbb renkler; geçersiz değer yok sayılır. */
+  color?: { button?: string; text?: string };
+  text?: { subscribe?: string; unsubscribe?: string; explanation?: string };
+  /** Abone olunca abonelikten çıkma düğmesi gösterilsin mi (varsayılan true). */
+  unsubscribeEnabled?: boolean;
+}
+
+export interface PromptOptions {
+  customlink?: CustomLinkOptions;
+}
+
 export interface InitOptions {
   appId: string;
   /** API kökü, örn. https://api.herosignal.dev (varsayılan: SDK'nın yüklendiği origin). */
@@ -113,6 +154,13 @@ export interface InitOptions {
   logLevel?: LogLevel;
   /** Dil (slidedown/bell metinleri ve `device.locale`); varsayılan navigator.language. */
   language?: string;
+  /** Karşılama bildirimi; varsayılan açık. */
+  welcomeNotification?: WelcomeNotificationOptions;
+  /** Bildirim tıklamasında açık pencere eşleştirmesi (varsayılan `exact`). */
+  notificationClickHandlerMatch?: NotificationClickHandlerMatch;
+  /** Eşleşen pencerede davranış (varsayılan `navigate`). */
+  notificationClickHandlerAction?: NotificationClickHandlerAction;
+  promptOptions?: PromptOptions;
 }
 
 export interface PushSubscriptionState {
@@ -159,7 +207,12 @@ export interface PersistedState {
   tokenHash: string | null;
   /** Gerçek PushSubscription endpoint'i (`pushSubscription.token`). */
   pushEndpoint: string | null;
+  /** Son otomatik istem reddi/kapatılma zamanı (geri çekilme: 3/7/30 gün). */
   slidedownDismissedAt: number | null;
+  /** Otomatik istemin kaç kez reddedildiği/kapatıldığı. */
+  promptDismissCount: number;
+  /** Karşılama bildirimi gösterildi mi (yalnızca bir kez). */
+  welcomeNotificationShown: boolean;
   pageViews: number;
   queue: QueuedOperation[];
   /** `User.addEmail`/`addSms` ile eklenen abonelikler (adres düz metin değil, SHA-256 özeti saklanır). */

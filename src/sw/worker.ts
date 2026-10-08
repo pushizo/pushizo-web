@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { ErrorReporter } from '../core/errors.js';
 import type { HsPayloadMeta, WorkerMessage } from '../core/types.js';
-import { deliveryIdOf, isJsonObjectText, parsePushPayload, postWithRetry, resolveClickUrl, toNotificationOptions } from './payload.js';
+import { deliveryIdOf, isJsonObjectText, matchClient, parseClickBehavior, parsePushPayload, postWithRetry, resolveClickUrl, toNotificationOptions } from './payload.js';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -14,6 +14,7 @@ const params = new URL(self.location.href).searchParams;
 const APP_ID = params.get('appId') ?? '';
 const API_URL = (params.get('apiUrl') ?? self.location.origin).replace(/\/$/, '');
 const STORE = 'hs-sw-config';
+const CLICK_BEHAVIOR_KEY = '/click-behavior';
 const SDK_VERSION = typeof __HS_SDK_VERSION__ === 'string' ? __HS_SDK_VERSION__ : '0.0.0-dev';
 
 /**
@@ -49,6 +50,16 @@ interface NotificationData {
   actions?: { action: string; url?: string }[];
   title?: string;
   body?: string;
+}
+
+/** Sayfanın init seçeneklerinden yazdığı tıklama davranışı (`notificationClickHandlerMatch/Action`). */
+async function clickBehavior() {
+  try {
+    const res = await (await caches.open(STORE)).match(CLICK_BEHAVIOR_KEY);
+    return parseClickBehavior(res ? await res.json() : null);
+  } catch {
+    return parseClickBehavior(null);
+  }
 }
 
 async function broadcast(message: WorkerMessage): Promise<void> {
@@ -117,14 +128,18 @@ self.addEventListener('notificationclick', (event) => {
       if (deliveryId) await post(deliveryUrl(deliveryId, 'opened'), actionId ? { button_id: actionId } : {});
       await broadcast({ type: 'hs:notification-click', payload: { title: data.title, body: data.body, url: data.url, actions: data.actions as never, hs: data.hs }, actionId, url });
       if (url) {
+        const target = new URL(url, self.location.origin).href;
+        const behavior = await clickBehavior();
         const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-        const existing = clients.find((c) => 'focus' in c);
-        if (existing && 'navigate' in existing) {
-          await (existing as WindowClient).focus();
-          await (existing as WindowClient).navigate(url);
-        } else {
-          await self.clients.openWindow(url);
+        const existing = matchClient(clients, target, behavior.match);
+        if (!existing) {
+          await self.clients.openWindow(target);
+          return;
         }
+        const focused = await existing.focus();
+        // Kontrol edilmeyen pencerede navigate() reddedilir; o durumda yeni pencere açılır.
+        if (behavior.action === 'navigate' && focused.url !== target)
+          await focused.navigate(target).catch(() => self.clients.openWindow(target));
       }
     })(),
   );

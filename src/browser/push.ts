@@ -1,5 +1,5 @@
 import type { Logger } from '../core/logger.js';
-import type { PermissionState, WorkerMessage } from '../core/types.js';
+import type { ClickBehavior, PermissionState, WorkerMessage } from '../core/types.js';
 
 export interface PushManagerOptions {
   appId: string;
@@ -93,6 +93,22 @@ export class WebPushManager {
     const sub = await this.getSubscription();
     if (!sub) return false;
     return sub.unsubscribe();
+  }
+
+  /**
+   * Tıklama davranışını SW'ye iletir: SW ile paylaşılan Cache Storage (`hs-sw-config`) kullanılır,
+   * böylece sayfa kapalıyken gelen bildirimin tıklaması da ayarı bilir.
+   */
+  async writeClickBehavior(behavior: ClickBehavior): Promise<void> {
+    if (!('caches' in window)) return;
+    const cache = await caches.open('hs-sw-config');
+    await cache.put('/click-behavior', new Response(JSON.stringify(behavior), { headers: { 'content-type': 'application/json' } }));
+  }
+
+  /** SW kaydı üzerinden yerel bildirim (karşılama bildirimi); `data` SW tıklama işleyicisinin beklediği biçimdedir. */
+  async showLocalNotification(title: string, body: string, url: string | undefined): Promise<void> {
+    const reg = await this.register();
+    await reg.showNotification(title, { body, data: { hs: {}, url, actions: [], title, body, custom: {} } });
   }
 
   /** SW'nin sayfa kapalıyken kaydettiği abonelik değişikliğini okur ve temizler. */

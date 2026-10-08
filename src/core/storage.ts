@@ -17,6 +17,8 @@ export const DEFAULT_STATE: PersistedState = {
   tokenHash: null,
   pushEndpoint: null,
   slidedownDismissedAt: null,
+  promptDismissCount: 0,
+  welcomeNotificationShown: false,
   pageViews: 0,
   queue: [],
   contactSubscriptions: [],

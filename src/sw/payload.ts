@@ -1,4 +1,4 @@
-import type { HsButton, HsPayloadMeta, WebPushPayload } from '../core/types.js';
+import type { ClickBehavior, HsButton, HsPayloadMeta, WebPushPayload } from '../core/types.js';
 
 /** Teslimat kimliği: yeni `hs.dlv`, yoksa eski `hs.delivery_id`. */
 export function deliveryIdOf(hs: HsPayloadMeta | null | undefined): string | undefined {
@@ -98,6 +98,39 @@ export function resolveClickUrl(data: { url?: string; actions?: { action: string
     if (action?.url) return action.url;
   }
   return data.url;
+}
+
+/** eski sağlayıcı varsayılanı: tam URL eşleşmesi + yönlendirme. */
+export const DEFAULT_CLICK_BEHAVIOR: ClickBehavior = { match: 'exact', action: 'navigate' };
+
+/** Sayfanın SW'ye ilettiği tıklama ayarı (Cache Storage) güvenli biçimde okunur; geçersiz alan varsayılana düşer. */
+export function parseClickBehavior(raw: unknown): ClickBehavior {
+  const v = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    match: v.match === 'origin' ? 'origin' : 'exact',
+    action: v.action === 'focus' ? 'focus' : 'navigate',
+  };
+}
+
+/**
+ * Tıklama hedefi için açık pencere seçimi: `exact` aynı URL'yi, `origin` aynı origin'i arar.
+ * Eşleşme yoksa undefined (yeni pencere açılır).
+ */
+export function matchClient<T extends { url: string }>(clients: readonly T[], target: string, match: ClickBehavior['match']): T | undefined {
+  let t: URL;
+  try {
+    t = new URL(target);
+  } catch {
+    return undefined;
+  }
+  return clients.find((c) => {
+    try {
+      const u = new URL(c.url);
+      return match === 'origin' ? u.origin === t.origin : u.href === t.href;
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** Teslimat geri bildirimi yeniden deneme beklemeleri (ms); toplam 3 deneme. */

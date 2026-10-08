@@ -6,11 +6,15 @@ import {
   WebPushManager,
 } from './browser/push.js';
 import {
+  canShowPrompt,
   mountBell,
+  recordPromptDismissal,
   showSlidedown,
   slidedownFromRemote,
+  texts,
   waitForScrollPercent,
 } from './browser/prompts.js';
+import { CUSTOMLINK_SELECTOR, renderCustomLink } from './browser/customlink.js';
 import { InAppManager } from './browser/in-app.js';
 import { SessionTracker } from './browser/session.js';
 import {
@@ -31,8 +35,8 @@ import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
 import { Logger } from './core/logger.js';
 import { OfflineQueue } from './core/queue.js';
-import { digest, syncPushToken } from './core/token.js';
-import { deliveryIdOf, messageIdOf } from './sw/payload.js';
+import { digest, syncPushToken, type TokenSyncResult } from './core/token.js';
+import { deliveryIdOf, messageIdOf, parseClickBehavior } from './sw/payload.js';
 
 /** `track()` olayları bu süre biriktirilip tek istekte gönderilir. */
 const EVENT_FLUSH_DELAY_MS = 1000;
@@ -57,8 +61,6 @@ import type {
 } from './core/types.js';
 
 const SDK_VERSION = typeof __HS_SDK_VERSION__ === 'string' ? __HS_SDK_VERSION__ : '0.0.0-dev';
-const DAY_MS = 86_400_000;
-
 type Listener<T> = (event: T) => void;
 
 /** HeroSignal Web SDK ana sınıfı (eski sağlayıcı v5 yüzeyiyle uyumlu). */
@@ -78,6 +80,8 @@ export class HeroSignalSdk {
   private readonly foregroundListeners = new Set<Listener<ForegroundLifecycleEvent>>();
   private readonly subscriptionObservers = new Set<Listener<PushSubscriptionState>>();
   private unmountBell: (() => void) | null = null;
+  /** Özel bağlantı istemi düğmesi işlemdeyken (abone ol/çık) tekrar tıklanamaz. */
+  private customLinkBusy = false;
   private errors: ErrorReporter | null = null;
   /** Son bildirilen kullanıcı/abonelik anahtarı (değişince in-app listesi ve inbox önbelleği yenilenir). */
   private identityKey = '';
@@ -191,6 +195,15 @@ export class HeroSignalSdk {
         logger: this.logger,
       });
       this.push.onMessage((message, reply) => this.handleWorkerMessage(message, reply));
+      // Tıklama davranışı SW'ye Cache Storage üzerinden iletilir (sayfa kapalıyken de geçerli).
+      void this.push
+        .writeClickBehavior(
+          parseClickBehavior({
+            match: options.notificationClickHandlerMatch,
+            action: options.notificationClickHandlerAction,
+          }),
+        )
+        .catch((err: unknown) => this.logger.warn('tıklama davranışı service worker için yazılamadı', err));
     }
 
     // Mevcut aboneliği sunucuyla eşitle (token yenileme / ilk kayıt)
@@ -232,9 +245,17 @@ export class HeroSignalSdk {
         () => void this.toggleBell(),
       );
     }
+    if (options.promptOptions?.customlink?.enabled) {
+      if (document.readyState === 'loading')
+        document.addEventListener('DOMContentLoaded', () => this.renderCustomLinks(), { once: true });
+      else this.renderCustomLinks();
+    }
     // Yerel `autoPrompt`/`slidedown` seçenekleri önceliklidir; verilmemişse dashboard istemi kullanılır.
     const remotePrompt = this.config?.web.prompt;
-    if (options.autoPrompt) void this.Notifications.requestPermission();
+    if (options.autoPrompt) {
+      if (currentPermission() === 'default' && canShowPrompt(this.store!.get(), Date.now()))
+        void this.promptNative();
+    }
     else if (options.slidedown) {
       if (options.slidedown.enabled !== false) void this.maybeShowSlidedown(options.slidedown);
     } else if (remotePrompt?.enabled) {
@@ -269,12 +290,12 @@ export class HeroSignalSdk {
   /**
    * Gerçek bir PushSubscription'ı sunucuyla eşitler: kayıt yoksa oluşturur, token değiştiyse mevcut
    * aboneliği günceller. Endpoint/anahtar eksikse hiçbir şey gönderilmez.
-   * @returns Abonelik sunucuda kayıtlıysa true.
+   * @returns Eşitleme sonucu (`created` yeni kayıt); token geçersizse null.
    */
   private async registerToken(
     subscription: PushSubscriptionJSON,
     user?: { external_id?: string; identity_hash?: string },
-  ): Promise<boolean> {
+  ): Promise<TokenSyncResult | null> {
     const token = subscriptionToToken(subscription);
     if (!token) {
       this.logger.warn('geçerli bir push aboneliği yok; token gönderilmedi');
@@ -283,7 +304,7 @@ export class HeroSignalSdk {
         'tarayıcı aboneliğinde endpoint/anahtar yok',
         undefined,
       );
-      return false;
+      return null;
     }
     const result = await syncPushToken(this.api!, this.store!, {
       token,
@@ -292,7 +313,7 @@ export class HeroSignalSdk {
       user,
     });
     if (result !== 'unchanged') this.notifySubscription();
-    return true;
+    return result;
   }
 
   private async subscribeNow(): Promise<void> {
@@ -304,7 +325,9 @@ export class HeroSignalSdk {
       return;
     }
     const sub = await this.push.subscribe(this.config.web.vapid_public_key);
-    if (!(await this.registerToken(sub.toJSON()))) return;
+    const registered = await this.registerToken(sub.toJSON());
+    if (!registered) return;
+    if (registered === 'created') void this.showWelcomeNotification();
     if (this.store!.get().subscriptionId && !this.store!.get().optedIn) {
       await this.api!.request('PATCH', `/subscriptions/${this.store!.get().subscriptionId}`, {
         opted_in: true,
@@ -314,6 +337,23 @@ export class HeroSignalSdk {
       this.notifySubscription();
     }
     await this.queue!.flush();
+  }
+
+  /** İlk abonelikte bir kez yerel karşılama bildirimi (eski sağlayıcı `welcomeNotification`); varsayılan açık. */
+  private async showWelcomeNotification(): Promise<void> {
+    const opts = this.options?.welcomeNotification;
+    const store = this.store!;
+    if (opts?.disable || store.get().welcomeNotificationShown || !this.push) return;
+    // Önce işaretlenir: eşzamanlı abonelik akışlarında iki kez gösterilmez.
+    store.update({ welcomeNotificationShown: true });
+    const title = opts?.title || document.title || window.location.hostname;
+    const message = opts?.message || texts(this.language).welcome;
+    try {
+      await this.push.showLocalNotification(title, message, opts?.url ?? `${window.location.origin}/`);
+    } catch (err) {
+      this.logger.warn('karşılama bildirimi gösterilemedi', err);
+      this.reportError('welcome_notification_failed', 'karşılama bildirimi gösterilemedi', err);
+    }
   }
 
   /** Sitenin sürümü (`<meta name="hs-app-version">`), yoksa undefined. */
@@ -726,6 +766,47 @@ export class HeroSignalSdk {
     const state = this.User.pushSubscription.state;
     for (const o of this.subscriptionObservers) o(state);
     this.syncIdentity();
+    this.renderCustomLinks();
+  }
+
+  /** `.herosignal-customlink-container` öğelerine abone ol/çık düğmesini render eder veya günceller. */
+  private renderCustomLinks(): void {
+    const opts = this.options?.promptOptions?.customlink;
+    if (!opts?.enabled || !this.push || typeof document === 'undefined') return;
+    const state = { subscribed: this.User.pushSubscription.optedIn, busy: this.customLinkBusy };
+    for (const el of Array.from(document.querySelectorAll(CUSTOMLINK_SELECTOR)))
+      renderCustomLink(el, opts, this.language, state, () => void this.toggleCustomLink());
+  }
+
+  private async toggleCustomLink(): Promise<void> {
+    if (this.customLinkBusy) return;
+    this.customLinkBusy = true;
+    this.renderCustomLinks();
+    try {
+      await this.toggleBell();
+    } catch (err) {
+      this.logger.warn('özel bağlantı istemi: abonelik değiştirilemedi', err);
+      this.reportError('customlink_toggle_failed', 'özel bağlantı isteminden abonelik değiştirilemedi', err);
+    } finally {
+      this.customLinkBusy = false;
+      this.renderCustomLinks();
+    }
+  }
+
+  /** Otomatik native istem; sonucu geri çekilme sayacına işlenir. */
+  private async promptNative(): Promise<void> {
+    this.recordPromptOutcome(await this.Notifications.requestPermission());
+  }
+
+  /** İzin verilirse sayaç sıfırlanır; reddedilir veya kapatılırsa (`default`) ret kaydedilir (3/7/30 gün). */
+  private recordPromptOutcome(result: PermissionState): void {
+    const store = this.store!;
+    if (result === 'granted') {
+      if (store.get().promptDismissCount > 0)
+        store.update({ promptDismissCount: 0, slidedownDismissedAt: null });
+    } else if (result === 'default' || result === 'denied') {
+      store.update(recordPromptDismissal(store.get(), Date.now()));
+    }
   }
 
   private async toggleBell(): Promise<void> {
@@ -741,25 +822,22 @@ export class HeroSignalSdk {
     if (currentPermission() !== 'default') return;
     const state = this.store!.get();
     if (state.pageViews < (opts.pageViews ?? 1)) return;
-    if (
-      state.slidedownDismissedAt &&
-      Date.now() - state.slidedownDismissedAt < (opts.retryDays ?? 3) * DAY_MS
-    )
-      return;
+    // Geri çekilme: 1. ret 3 gün, 2. ret 7 gün, sonrakiler 30 gün (`retryDays` verilirse sabit süre).
+    if (!canShowPrompt(state, Date.now(), opts.retryDays)) return;
     await new Promise((r) => setTimeout(r, (opts.delaySeconds ?? 0) * 1000));
     if (opts.scrollPercent !== undefined && opts.scrollPercent > 0)
       await waitForScrollPercent(Math.min(100, opts.scrollPercent));
     if (currentPermission() !== 'default') return;
     if (mode === 'native') {
-      await this.Notifications.requestPermission();
+      await this.promptNative();
       return;
     }
     const result = await showSlidedown(opts, this.language, this.store!.get().tags);
     if (!result.accepted) {
-      this.store!.update({ slidedownDismissedAt: Date.now() });
+      this.store!.update(recordPromptDismissal(this.store!.get(), Date.now()));
       return;
     }
-    await this.Notifications.requestPermission();
+    await this.promptNative();
     // Kategori seçimi tag olarak yazılır (kullanıcı oluşunca kuyruk gönderir).
     if (Object.keys(result.tags).length > 0)
       this.enqueue({ type: 'tags', tags: result.tags, at: Date.now() });
@@ -942,6 +1020,7 @@ export class HeroSignalSdk {
     get permission(): PermissionState {
       return currentPermission();
     },
+    /** Native izin istemi; otomatik istemlerin geri çekilme süresini yok sayar. */
     requestPermission: async (): Promise<PermissionState> => {
       this.assertReady();
       if (!isPushSupported()) return 'unsupported';

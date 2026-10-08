@@ -10,6 +10,7 @@ const TEXTS = {
     categoriesTitle: 'Hangi konularda bildirim almak istersiniz?',
     subscribed: 'Bildirimlere abonesiniz',
     unsubscribed: 'Bildirimlere abone ol',
+    welcome: 'Abone olduğunuz için teşekkürler!',
   },
   en: {
     title: 'Enable notifications?',
@@ -19,10 +20,11 @@ const TEXTS = {
     categoriesTitle: 'Which topics would you like to hear about?',
     subscribed: 'You are subscribed to notifications',
     unsubscribed: 'Subscribe to notifications',
+    welcome: 'Thanks for subscribing!',
   },
 };
 
-function texts(language: string) {
+export function texts(language: string) {
   return language.toLowerCase().startsWith('tr') ? TEXTS.tr : TEXTS.en;
 }
 
@@ -83,6 +85,38 @@ export function slidedownFromRemote(prompt: RemotePromptConfig, language: string
 /** Yalnızca #rrggbb kabul edilir (CSS enjeksiyonuna karşı). */
 export function safeAccentColor(value: string | undefined): string | undefined {
   return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : undefined;
+}
+
+/** İstem reddedilince (veya kapatılınca) bekleme süreleri: 1. ret 3 gün, 2. ret 7 gün, sonrakiler 30 gün. */
+export const PROMPT_BACKOFF_DAYS = [3, 7, 30] as const;
+const DAY_MS = 86_400_000;
+
+/** Ret sayısına göre bekleme süresi (ms); hiç ret yoksa 0. `fixedDays` verilirse (eski `retryDays`) sabit süre. */
+export function promptBackoffMs(dismissCount: number, fixedDays?: number): number {
+  if (dismissCount <= 0) return 0;
+  if (fixedDays !== undefined) return Math.max(0, fixedDays) * DAY_MS;
+  const index = Math.min(dismissCount, PROMPT_BACKOFF_DAYS.length) - 1;
+  return PROMPT_BACKOFF_DAYS[index]! * DAY_MS;
+}
+
+/** Otomatik istem (slidedown/native) gösterilebilir mi? Son retten bu yana bekleme süresi dolmalı. */
+export function canShowPrompt(
+  state: { promptDismissCount: number; slidedownDismissedAt: number | null },
+  now: number,
+  fixedDays?: number,
+): boolean {
+  if (!state.slidedownDismissedAt) return true;
+  // Eski sürüm kaydı: zaman var ama sayaç yok → bir ret sayılır.
+  const count = Math.max(1, state.promptDismissCount);
+  return now - state.slidedownDismissedAt >= promptBackoffMs(count, fixedDays);
+}
+
+/** Ret kaydı: sayaç bir artar, zaman güncellenir. */
+export function recordPromptDismissal(
+  state: { promptDismissCount: number },
+  now: number,
+): { promptDismissCount: number; slidedownDismissedAt: number } {
+  return { promptDismissCount: Math.max(0, state.promptDismissCount) + 1, slidedownDismissedAt: now };
 }
 
 /** Slidedown sonucu; `tags` yalnızca kategori seçimi varsa ve kabul edildiyse doludur. */
