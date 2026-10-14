@@ -44,7 +44,7 @@ import { InboxClient } from './core/inbox.js';
 import { Logger } from './core/logger.js';
 import { OfflineQueue } from './core/queue.js';
 import { digest, syncPushToken } from './core/token.js';
-import { deliveryIdOf, messageIdOf } from './sw/payload.js';
+import { deliveryIdOf, messageIdOf, toNotificationOptions } from './sw/payload.js';
 
 /** `track()` olayları bu süre biriktirilip tek istekte gönderilir. */
 const EVENT_FLUSH_DELAY_MS = 1000;
@@ -65,6 +65,7 @@ import type {
   PreferenceInput,
   SlidedownCollect,
   SlidedownOptions,
+  PermissionChangeEvent,
   PermissionState,
   PushSubscriptionState,
   QueuedOperation,
@@ -93,6 +94,12 @@ export class HeroSignalSdk {
   private readonly clickListeners = new Set<Listener<NotificationClickEvent>>();
   private readonly foregroundListeners = new Set<Listener<ForegroundLifecycleEvent>>();
   private readonly subscriptionObservers = new Set<Listener<PushSubscriptionState>>();
+  private readonly permissionObservers = new Set<Listener<PermissionChangeEvent>>();
+  /** Gözlemcilere son bildirilen izin durumu (değişim tespiti için). */
+  private lastPermission: PermissionState | null = null;
+  private permissionWatchInstalled = false;
+  /** `start()` bir kez çalışır (onay geri alınıp yeniden verilse de dinleyiciler çoğalmaz). */
+  private started = false;
   private unmountBell: (() => void) | null = null;
   private errors: ErrorReporter | null = null;
   /** Son bildirilen kullanıcı/abonelik anahtarı (değişince in-app listesi ve inbox önbelleği yenilenir). */
@@ -103,6 +110,7 @@ export class HeroSignalSdk {
     logger: this.logger,
     language: () => this.language,
     subscriptionId: () => this.primarySubscriptionId(),
+    ownershipHash: (subscriptionId) => this.ownershipHashOf(subscriptionId),
     enqueue: (op) => this.enqueue(op),
     addTags: (tags) => this.User.addTags(tags),
     // `push_prompt`: mevcut izin + abonelik akışı; `outcome`: mevcut olay API'si.
@@ -132,25 +140,33 @@ export class HeroSignalSdk {
     this.language =
       options.language ?? (typeof navigator !== 'undefined' ? navigator.language : 'en');
     const apiUrl = (options.apiUrl ?? inferApiUrl()).replace(/\/$/, '');
-    this.api = new SdkApi({ baseUrl: apiUrl, appId: options.appId, logger: this.logger });
     this.store = new StateStore(options.appId);
+    this.api = new SdkApi({
+      baseUrl: apiUrl,
+      appId: options.appId,
+      logger: this.logger,
+      // Son savunma hattı: gizlilik onayı yokken hiçbir yoldan ağ isteği çıkmaz (KVKK/GDPR, plan 06 §6.1).
+      fetch: (input, init) =>
+        this.consentPending()
+          ? Promise.reject(new ApiError(0, 'NO_CONSENT', 'gizlilik onayı verilmedi'))
+          : fetch(input, init),
+    });
     const api = this.api;
     this.errors = new ErrorReporter({
       sdkVersion: SDK_VERSION,
       send: (body) => api.request('POST', '/errors', body),
     });
-    this.queue = new OfflineQueue(
-      this.store,
-      (op) => this.perform(op),
-      this.logger,
-      (op, err) =>
+    this.queue = new OfflineQueue(this.store, (op) => this.perform(op), this.logger, {
+      onRejected: (op, err) =>
         this.reportError('operation_rejected', 'kuyruk işlemi sunucu tarafından reddedildi', err, {
           operation: op.type,
         }),
-    );
+      // Onay verilene kadar işlemler kuyrukta (kalıcı) bekler; `setConsentGiven(true)` ile gönderilir.
+      isPaused: () => this.consentPending(),
+    });
     this.store.update({ pageViews: this.store.get().pageViews + 1 });
 
-    if (options.requiresPrivacyConsent && !this.store.get().consentGiven) {
+    if (this.consentPending()) {
       this.errors.setEnabled(false);
       this.logger.info('gizlilik onayı bekleniyor; ağ çağrısı yapılmayacak');
       return;
@@ -171,19 +187,28 @@ export class HeroSignalSdk {
     });
   }
 
-  /** KVKK/GDPR onayı: verilince SDK başlar. */
+  /** `requiresPrivacyConsent` açık ve onay henüz verilmemiş mi (true iken ağ çağrısı yapılmaz). */
+  private consentPending(): boolean {
+    return this.options?.requiresPrivacyConsent === true && this.store?.get().consentGiven !== true;
+  }
+
+  /** KVKK/GDPR onayı: verilince SDK başlar ve onay öncesi kuyruğa alınan işlemler gönderilir. */
   async setConsentGiven(given: boolean): Promise<void> {
     if (!this.store) throw new Error('HeroSignal.init önce çağrılmalı.');
     this.store.update({ consentGiven: given });
     this.errors?.setEnabled(given);
-    if (given && this.api && !this.config) await this.start();
-    if (!given) {
-      this.queue?.clear();
-      this.store.reset({ consentGiven: false, pageViews: this.store.get().pageViews });
+    if (given) {
+      if (this.api && !this.started) await this.start();
+      else await this.queue?.flush();
+      return;
     }
+    this.queue?.clear();
+    this.store.reset({ consentGiven: false, pageViews: this.store.get().pageViews });
   }
 
   private async start(): Promise<void> {
+    if (this.started) return;
+    this.started = true;
     const options = this.options!;
     // Yapılandırma önce alınır: service worker yolu/kapsamı ve istem ayarları dashboard'dan gelebilir.
     try {
@@ -384,13 +409,16 @@ export class HeroSignalSdk {
   /** Sitenin sürümü (`<meta name="hs-app-version">`), yoksa undefined. */
   private appVersion(): string | undefined {
     if (typeof document === 'undefined') return undefined;
+    // Boş değer de "bilinmiyor" sayılır: alan null/boş gönderilmez, hiç gönderilmez.
     return (
-      document.querySelector('meta[name="hs-app-version"]')?.getAttribute('content') ?? undefined
+      document.querySelector('meta[name="hs-app-version"]')?.getAttribute('content')?.trim() ||
+      undefined
     );
   }
 
   private deviceInfo(): DeviceInfo {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const appVersion = this.appVersion();
     return {
       model: browserName(ua),
       os: osName(ua),
@@ -399,7 +427,7 @@ export class HeroSignalSdk {
       locale: this.language,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       push_capable: isPushSupported() && currentPermission() === 'granted',
-      app_version: this.appVersion(),
+      ...(appVersion ? { app_version: appVersion } : {}),
     };
   }
 
@@ -425,7 +453,7 @@ export class HeroSignalSdk {
    */
   private sendSessionEnd(durationSeconds: number): void {
     const body = this.sessionBody(durationSeconds);
-    if (!body || !this.api) return;
+    if (!body || !this.api || this.consentPending()) return;
     this.api.request('POST', '/sessions', body).catch((err: unknown) => {
       if (err instanceof ApiError && !err.retryable) {
         this.reportError('operation_rejected', 'oturum bitişi sunucu tarafından reddedildi', err, {
@@ -486,7 +514,9 @@ export class HeroSignalSdk {
       }
       case 'event':
       case 'event_batch': {
-        if (!state.subscriptionId && !state.externalId) return; // bağlanacak kimlik yok; atla
+        const owner = this.eventOwner();
+        // Bağlanacak kimlik yok: olay atılmaz, abonelik veya login gelene kadar kuyrukta bekler (B-16).
+        if (!owner) throw new ApiError(0, 'NO_IDENTITY', 'olayın bağlanacağı abonelik veya external_id yok');
         const ops = op.type === 'event' ? [op] : op.events;
         await this.api!.request('POST', '/events', {
           events: ops.map((e) => ({
@@ -494,9 +524,7 @@ export class HeroSignalSdk {
             properties: e.properties ?? {},
             value: e.value,
             occurred_at: e.occurredAt,
-            ...(state.subscriptionId
-              ? { subscription_id: state.subscriptionId }
-              : { external_id: state.externalId }),
+            ...owner,
           })),
         });
         return;
@@ -558,6 +586,8 @@ export class HeroSignalSdk {
         try {
           await postInAppEvent(this.api!, op.messageId, {
             subscription_id: op.subscriptionId,
+            // Kanıt gönderim anında çözülür (kuyrukta saklanmaz); abonelik bu cihazda değilse eklenmez.
+            ...ownershipProof(this.ownershipHashOf(op.subscriptionId)),
             type: op.eventType,
             ...(op.buttonId ? { button_id: op.buttonId } : {}),
             ...(op.variantId ? { variant_id: op.variantId } : {}),
@@ -723,6 +753,25 @@ export class HeroSignalSdk {
     this.store!.update({ contactSubscriptions: linked });
   }
 
+  /**
+   * Olayın bağlanacağı kimlik ve sahiplik kanıtı (D-1): push aboneliği, yoksa login'deki external_id, o da yoksa
+   * bu cihazda eklenen e-posta/SMS aboneliği. `token_hash` aboneliğin kayıtlı kanonik token özeti, `identity_hash`
+   * login'de verilen HMAC'tir; yalnızca mevcutsa eklenir.
+   */
+  private eventOwner(): Record<string, string> | null {
+    const state = this.store!.get();
+    const subscriptionId = state.subscriptionId ?? (state.externalId ? null : this.primarySubscriptionId());
+    const identity = state.externalId ? ownershipProof(null, state.identityHash) : {};
+    if (subscriptionId)
+      return {
+        subscription_id: subscriptionId,
+        ...ownershipProof(this.ownershipHashOf(subscriptionId)),
+        ...identity,
+      };
+    if (state.externalId) return { external_id: state.externalId, ...identity };
+    return null;
+  }
+
   /** Bu cihazdaki aboneliğin sahiplik kanıtı özeti (push: kayıtlı token, e-posta/SMS: kanonik adres). */
   private ownershipHashOf(subscriptionId: string): string | null {
     const state = this.store!.get();
@@ -751,7 +800,12 @@ export class HeroSignalSdk {
       state.subscriptionId ??
       state.contactSubscriptions.find((c) => c.userId === state.userId)?.subscriptionId;
     if (!subscriptionId) return null;
-    return { userId: state.userId, subscriptionId, identityHash: state.identityHash };
+    return {
+      userId: state.userId,
+      subscriptionId,
+      identityHash: state.identityHash,
+      tokenHash: this.ownershipHashOf(subscriptionId),
+    };
   }
 
   private currentIdentityKey(): string {
@@ -787,6 +841,8 @@ export class HeroSignalSdk {
     switch (message.type) {
       case 'hs:push-received': {
         let prevented = false;
+        let displayed = false;
+        const payload = message.payload;
         const event: ForegroundLifecycleEvent = {
           notification: {
             title: message.payload.title ?? '',
@@ -797,6 +853,14 @@ export class HeroSignalSdk {
           },
           preventDefault: () => {
             prevented = true;
+          },
+          // Engellenmiş bildirim sonradan aynı payload ile gösterilir (tıklama/`opened` SW'de aynen çalışır).
+          // Engellenmediyse SW zaten gösterir; ikinci kez gösterilmez.
+          display: async () => {
+            if (!prevented || displayed || !this.push) return;
+            displayed = true;
+            const { title, options } = toNotificationOptions(payload);
+            await this.push.showLocalNotification(title, options);
           },
         };
         if (document.visibilityState === 'visible')
@@ -833,6 +897,41 @@ export class HeroSignalSdk {
       case 'hs:received':
         return;
     }
+  }
+
+  /** İzin durumu değiştiyse izin gözlemcilerine bildirir. */
+  private checkPermissionChange(): void {
+    const permission = currentPermission();
+    if (permission === this.lastPermission) return;
+    this.lastPermission = permission;
+    const event: PermissionChangeEvent = { permission: permission === 'granted', state: permission };
+    for (const o of this.permissionObservers) {
+      try {
+        o(event);
+      } catch (err) {
+        this.logger.warn('izin gözlemcisi hata verdi', err);
+      }
+    }
+  }
+
+  /**
+   * İzin değişimini izler: Permissions API `change` olayı (destekleyen tarayıcılarda; kullanıcının site
+   * ayarlarından değiştirmesi dahil) ve sayfa yeniden görünür olduğunda kontrol. Ağ çağrısı yapmaz.
+   */
+  private installPermissionWatch(): void {
+    if (this.permissionWatchInstalled || typeof window === 'undefined') return;
+    this.permissionWatchInstalled = true;
+    this.lastPermission = currentPermission();
+    const check = () => this.checkPermissionChange();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') check();
+    });
+    const permissions = typeof navigator !== 'undefined' ? navigator.permissions : undefined;
+    if (!permissions?.query) return;
+    permissions
+      .query({ name: 'notifications' })
+      .then((status) => status.addEventListener('change', check))
+      .catch((err: unknown) => this.logger.debug('Permissions API kullanılamıyor', err));
   }
 
   private notifySubscription(): void {
@@ -1137,6 +1236,10 @@ export class HeroSignalSdk {
         sdkRef.subscriptionObservers.add(cb);
         return () => sdkRef.subscriptionObservers.delete(cb);
       },
+      /** `addObserver` ile eklenen gözlemciyi kaldırır (dönen fonksiyonla eşdeğer). */
+      removeObserver: (cb: Listener<PushSubscriptionState>): void => {
+        sdkRef.subscriptionObservers.delete(cb);
+      },
     },
   };
 
@@ -1148,6 +1251,7 @@ export class HeroSignalSdk {
       this.assertReady();
       if (!isPushSupported()) return 'unsupported';
       const result = await Notification.requestPermission();
+      this.checkPermissionChange();
       if (result === 'granted') {
         try {
           await this.subscribeNow();
@@ -1166,6 +1270,23 @@ export class HeroSignalSdk {
     addForegroundLifecycleListener: (cb: Listener<ForegroundLifecycleEvent>): (() => void) => {
       this.foregroundListeners.add(cb);
       return () => this.foregroundListeners.delete(cb);
+    },
+    /**
+     * İzin değişimi gözlemcisi: istem sonucu ve (Permissions API destekleniyorsa) kullanıcının site
+     * ayarlarından yaptığı değişiklikler bildirilir. Dönen fonksiyon gözlemciyi kaldırır.
+     */
+    addPermissionObserver: (cb: Listener<PermissionChangeEvent>): (() => void) => {
+      this.permissionObservers.add(cb);
+      this.installPermissionWatch();
+      return () => this.permissionObservers.delete(cb);
+    },
+    removePermissionObserver: (cb: Listener<PermissionChangeEvent>): void => {
+      this.permissionObservers.delete(cb);
+    },
+    /** Bu sitenin service worker'ının gösterdiği tüm bildirimleri kapatır (ağ çağrısı yapmaz). */
+    clearAll: async (): Promise<void> => {
+      if (!this.push) return;
+      await this.push.clearNotifications();
     },
   };
 
@@ -1304,6 +1425,9 @@ export class HeroSignalSdk {
   }
 
   destroy(): void {
+    // Bekleyen toplu olay gönderimi iptal edilir; olaylar kalıcı kuyrukta kalır, sonraki init'te gönderilir.
+    if (this.eventFlushTimer) clearTimeout(this.eventFlushTimer);
+    this.eventFlushTimer = null;
     this.unmountBell?.();
     this.session?.end();
     this.inApp.destroy();

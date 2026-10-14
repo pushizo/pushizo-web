@@ -472,6 +472,41 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     hs.destroy();
   });
 
+  it('push aboneliğinde in-app ve inbox istekleri kayıtlı token özetini kanıt olarak gönderir (ADR-0016)', async () => {
+    const pushHash = await digest('push-token');
+    const identityHash = 'c'.repeat(64);
+    localStorage.setItem(
+      'hs:app_1',
+      JSON.stringify({
+        subscriptionId: 'sub_push',
+        userId: 'usr_known',
+        externalId: 'u-42',
+        identityHash,
+        optedIn: true,
+        tokenHash: pushHash,
+      }),
+    );
+    const api = fakeApi([]);
+    const hs = createSdk();
+    await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
+    await vi.waitFor(() => expect(api.find('GET', '/in-app')).toHaveLength(1));
+    expect(api.find('GET', '/in-app')[0]!.query).toEqual({
+      subscription_id: 'sub_push',
+      token_hash: pushHash,
+    });
+
+    await hs.Inbox.list();
+    await hs.Inbox.markRead('ibx_1');
+    await hs.Inbox.markAllRead();
+    await hs.Inbox.archive('ibx_2');
+    const proof = { subscription_id: 'sub_push', token_hash: pushHash, identity_hash: identityHash };
+    expect(api.find('GET', '/users/usr_known/inbox')[0]!.query).toEqual(proof);
+    expect(api.find('POST', '/users/usr_known/inbox/ibx_1/read')[0]!.body).toEqual(proof);
+    expect(api.find('POST', '/users/usr_known/inbox/read-all')[0]!.body).toEqual(proof);
+    expect(api.find('DELETE', '/users/usr_known/inbox/ibx_2')[0]!.query).toEqual(proof);
+    hs.destroy();
+  });
+
   it('cihaz aboneliği sunucuda yoksa (404) adres bağlamasız yeniden kaydedilir', async () => {
     localStorage.setItem(
       'hs:app_1',
@@ -515,10 +550,16 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     await vi.waitFor(() =>
       expect(document.querySelector('[data-hs-message-id="iam_welcome"]')).not.toBeNull(),
     );
-    expect(api.find('GET', '/in-app')[0]!.query).toEqual({ subscription_id: 'sub_mail' });
+    // E-posta aboneliğinin sahiplik kanıtı (kanonik adresin özeti) liste ve olaylarla gönderilir (ADR-0016).
+    const mailHash = await digest('a@example.com');
+    expect(api.find('GET', '/in-app')[0]!.query).toEqual({
+      subscription_id: 'sub_mail',
+      token_hash: mailHash,
+    });
     await vi.waitFor(() =>
       expect(api.find('POST', '/in-app/iam_welcome/events')[0]?.body).toEqual({
         subscription_id: 'sub_mail',
+        token_hash: mailHash,
         type: 'impression',
       }),
     );
@@ -557,8 +598,8 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(document.getElementById('hs-in-app')).toBeNull();
     await vi.waitFor(() =>
       expect(api.find('POST', '/in-app/iam_cart/events').map((c) => c.body)).toEqual([
-        { subscription_id: 'sub_mail', type: 'impression' },
-        { subscription_id: 'sub_mail', type: 'click', button_id: 'go' },
+        { subscription_id: 'sub_mail', token_hash: mailHash, type: 'impression' },
+        { subscription_id: 'sub_mail', token_hash: mailHash, type: 'click', button_id: 'go' },
       ]),
     );
 
@@ -645,6 +686,8 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
       .click();
     hs.Session.sendEvent('repeat_evt');
     await vi.waitFor(() => expect(shown('iam_repeat')).toBe(true));
+    // Olaylar artık e-posta aboneliğiyle gönderilir: test bitmeden kuyruk boşalsın (sahte fetch kaldırılmadan).
+    await vi.waitFor(() => expect(hs.pendingOperations).toBe(0));
     hs.destroy();
   });
 
@@ -659,8 +702,11 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     const events: InboxChangeEvent[] = [];
     hs.Inbox.addObserver((e) => events.push(e));
     const page = await hs.Inbox.list({ limit: 10 });
+    // Tüm inbox isteklerinde aboneliğin sahiplik kanıtı (ADR-0016) gönderilir.
+    const mailHash = await digest('a@example.com');
     expect(api.find('GET', '/users/usr_1/inbox')[0]!.query).toEqual({
       subscription_id: 'sub_mail',
+      token_hash: mailHash,
       limit: '10',
     });
     expect(page).toMatchObject({ unreadCount: 3, nextCursor: 'cur_2', hasMore: true });
@@ -683,10 +729,12 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(item.read).toBe(true);
     expect(api.find('POST', '/users/usr_1/inbox/ibx_1/read')[0]!.body).toEqual({
       subscription_id: 'sub_mail',
+      token_hash: mailHash,
     });
     await hs.Inbox.archive('ibx_2');
     expect(api.find('DELETE', '/users/usr_1/inbox/ibx_2')[0]!.query).toEqual({
       subscription_id: 'sub_mail',
+      token_hash: mailHash,
     });
     expect(await hs.Inbox.markAllRead()).toEqual({ updated: 2, unreadCount: 0 });
     expect(await hs.Inbox.unreadCount()).toBe(3);
@@ -705,6 +753,7 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     await hs.Inbox.markAllRead();
     expect(api.find('POST', '/users/usr_known/inbox/read-all')[0]!.body).toEqual({
       subscription_id: 'sub_mail',
+      token_hash: mailHash,
       identity_hash: hash,
     });
     hs.destroy();

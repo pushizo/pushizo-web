@@ -80,6 +80,14 @@ export class WebPushManager {
     await reg.showNotification(title, options);
   }
 
+  /** Service worker'ın gösterdiği bildirimleri kapatır; kapatılan bildirim sayısını döner. */
+  async clearNotifications(): Promise<number> {
+    const reg = await this.register();
+    const notifications = await reg.getNotifications();
+    for (const notification of notifications) notification.close();
+    return notifications.length;
+  }
+
   async getSubscription(): Promise<PushSubscription | null> {
     const reg = await this.register();
     return reg.pushManager.getSubscription();
