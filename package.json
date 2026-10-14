@@ -1,8 +1,29 @@
 {
   "name": "@herosignal/web",
   "version": "0.1.0",
-  "private": true,
   "description": "HeroSignal Web SDK: izin istemi, Web Push aboneliği, kullanıcı/tag yönetimi, olaylar ve service worker",
+  "license": "MIT",
+  "homepage": "https://github.com/exec0de/herosignal/tree/main/sdk/web#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/exec0de/herosignal.git",
+    "directory": "sdk/web"
+  },
+  "bugs": {
+    "url": "https://github.com/exec0de/herosignal/issues"
+  },
+  "keywords": [
+    "herosignal",
+    "push",
+    "notifications",
+    "web-push",
+    "email",
+    "sms"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,7 +35,8 @@
     "./sw": "./dist/HeroSignalSDKWorker.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "build": "node build.mjs && tsc -p tsconfig.build.json",
@@ -25,5 +47,6 @@
   "devDependencies": {
     "esbuild": "^0.28.2",
     "happy-dom": "^20.14.5"
-  }
+  },
+  "sideEffects": false
 }
