@@ -38,6 +38,8 @@ export interface InAppHost {
   language: () => string;
   /** In-app için kullanılacak abonelik (push, yoksa e-posta/SMS); yoksa null. */
   subscriptionId: () => string | null;
+  /** Aboneliğin sahiplik kanıtı özeti (ADR-0016; push: kayıtlı token, e-posta/SMS: kanonik adres); yoksa null. */
+  ownershipHash: (subscriptionId: string) => string | null;
   enqueue: (op: InAppEventOp) => void;
   addTags: (tags: Record<string, string>) => void;
   /** `push_prompt` aksiyonu: yerel push izin istemi (mevcut `Notifications.requestPermission` akışı). */
@@ -247,7 +249,7 @@ export class InAppManager {
     const subscriptionId = this.host.subscriptionId();
     if (!this.started || !api || !subscriptionId) return Promise.resolve();
     if (!force && this.loaded && this.now() < this.nextFetchAt) return Promise.resolve();
-    this.fetching = fetchInAppMessages(api, subscriptionId)
+    this.fetching = fetchInAppMessages(api, subscriptionId, this.host.ownershipHash(subscriptionId))
       .then((result) => {
         this.messages = (result.data ?? []).filter(isRenderable);
         this.loaded = true;

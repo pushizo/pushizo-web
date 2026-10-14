@@ -155,12 +155,16 @@ describe('in-app: A/B varyantı, app geneli aralık ve tetik grupları', () => {
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
     hs.User.addEmail('a@example.com');
     await vi.waitFor(() => expect(api.find('GET', '/in-app')).toHaveLength(1));
+    // E-posta aboneliğinin sahiplik kanıtı (kanonik adresin özeti) liste ve olay isteklerine eklenir.
+    const mailHash = await digest('a@example.com');
+    expect(api.find('GET', '/in-app')[0]!.query).toEqual({ subscription_id: 'sub_mail', token_hash: mailHash });
 
     hs.Session.sendEvent('e1');
     await vi.waitFor(() => expect(shown('iam_a')).toBe(true));
     await vi.waitFor(() =>
       expect(api.find('POST', '/in-app/iam_a/events')[0]?.body).toEqual({
         subscription_id: 'sub_mail',
+        token_hash: mailHash,
         type: 'impression',
         variant_id: 'var_b',
       }),
@@ -170,6 +174,7 @@ describe('in-app: A/B varyantı, app geneli aralık ve tetik grupları', () => {
     await vi.waitFor(() =>
       expect(api.find('POST', '/in-app/iam_a/events')[1]?.body).toEqual({
         subscription_id: 'sub_mail',
+        token_hash: mailHash,
         type: 'click',
         button_id: 'ok',
         variant_id: 'var_b',
@@ -187,7 +192,11 @@ describe('in-app: A/B varyantı, app geneli aralık ve tetik grupları', () => {
     await vi.waitFor(() => expect(shown('iam_b')).toBe(true));
     // Varyantı olmayan mesajın olayında variant_id yok.
     await vi.waitFor(() =>
-      expect(api.find('POST', '/in-app/iam_b/events')[0]?.body).toEqual({ subscription_id: 'sub_mail', type: 'impression' }),
+      expect(api.find('POST', '/in-app/iam_b/events')[0]?.body).toEqual({
+        subscription_id: 'sub_mail',
+        token_hash: mailHash,
+        type: 'impression',
+      }),
     );
     hs.destroy();
   });

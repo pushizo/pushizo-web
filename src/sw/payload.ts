@@ -133,19 +133,44 @@ export function pickClickTarget(
   return { index, navigate: action !== 'focus' };
 }
 
+/**
+ * Bildirim tıklamasında açılabilecek güvenli adres: yalnızca `http:`/`https:` mutlak adresler veya aynı
+ * origin'e çözülen göreli adresler kabul edilir. `javascript:`, `data:`, `vbscript:` gibi şemalar ve başka
+ * origin'e çıkan göreli adresler (`//evil.example`, `/\evil.example`) reddedilir (undefined).
+ */
+export function safeClickUrl(raw: string | null | undefined, origin: string): string | undefined {
+  if (typeof raw !== 'string' || !raw.trim()) return undefined;
+  let base: URL;
+  let parsed: URL;
+  try {
+    base = new URL(origin);
+    parsed = new URL(raw.trim(), base);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+  // Şema içermeyen adres göreli sayılır ve yalnızca aynı origin'de kalabilir.
+  const absolute = /^[a-z][a-z0-9+.-]*:/i.test(raw.trim());
+  if (!absolute && parsed.origin !== base.origin) return undefined;
+  return parsed.href;
+}
+
 /** Teslimat geri bildirimi yeniden deneme beklemeleri (ms); toplam 3 deneme. */
 export const FEEDBACK_BACKOFF_MS = [500, 1500];
 
+/** Geri bildirim gönderim sonucu: gönderildi, kalıcı ret (4xx) veya sonra yeniden denenmeli. */
+export type FeedbackResult = 'sent' | 'rejected' | 'retry';
+
 /**
- * POST isteğini ağ hatası, 429 veya 5xx durumunda geri çekilmeyle yeniden dener (en fazla 3 deneme).
- * 4xx kalıcı hatadır, tekrarlanmaz. Hata fırlatmaz: geri bildirim gösterimi engellememelidir.
- * @returns İstek başarılı olduysa true.
+ * POST isteğini ağ hatası, 429 veya 5xx durumunda `backoff` beklemeleriyle yeniden dener.
+ * 4xx kalıcı hatadır, tekrarlanmaz. Hata fırlatmaz.
  */
-export async function postWithRetry(
+export async function deliverFeedback(
   send: (init: RequestInit) => Promise<Response>,
   body?: unknown,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
-): Promise<boolean> {
+  backoff: readonly number[] = FEEDBACK_BACKOFF_MS,
+): Promise<FeedbackResult> {
   const init: RequestInit = {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -157,13 +182,27 @@ export async function postWithRetry(
     let retryable: boolean;
     try {
       const res = await send(init);
-      if (res.ok) return true;
+      if (res.ok) return 'sent';
       retryable = res.status === 429 || res.status >= 500;
     } catch {
       // Ağ hatası: yeniden denenebilir.
       retryable = true;
     }
-    if (!retryable || attempt >= FEEDBACK_BACKOFF_MS.length) return false;
-    await sleep(FEEDBACK_BACKOFF_MS[attempt]!);
+    if (!retryable) return 'rejected';
+    if (attempt >= backoff.length) return 'retry';
+    await sleep(backoff[attempt]!);
   }
+}
+
+/**
+ * POST isteğini ağ hatası, 429 veya 5xx durumunda geri çekilmeyle yeniden dener (en fazla 3 deneme).
+ * 4xx kalıcı hatadır, tekrarlanmaz. Hata fırlatmaz: geri bildirim gösterimi engellememelidir.
+ * @returns İstek başarılı olduysa true.
+ */
+export async function postWithRetry(
+  send: (init: RequestInit) => Promise<Response>,
+  body?: unknown,
+  sleep?: (ms: number) => Promise<void>,
+): Promise<boolean> {
+  return (await deliverFeedback(send, body, sleep)) === 'sent';
 }

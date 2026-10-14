@@ -204,6 +204,19 @@ export interface ForegroundLifecycleEvent {
   };
   /** Çağrılırsa bildirim gösterilmez. */
   preventDefault: () => void;
+  /**
+   * `preventDefault` ile engellenmiş bildirimi aynı içerikle sonradan gösterir (yalnızca bir kez).
+   * Engellenmemiş bildirimi service worker zaten gösterir; bu durumda bir şey yapmaz.
+   */
+  display: () => Promise<void>;
+}
+
+/** `Notifications.addPermissionObserver` olayı. */
+export interface PermissionChangeEvent {
+  /** Bildirim izni verildi mi (diğer HeroSignal SDK'larıyla aynı alan). */
+  permission: boolean;
+  /** Ayrıntılı tarayıcı izin durumu. */
+  state: PermissionState;
 }
 
 /** Cihazda saklanan SDK durumu. */

@@ -155,9 +155,19 @@ export function deleteSubscription(
   return api.request<void>('DELETE', `/subscriptions/${enc(subscriptionId)}${queryString({ ...proof })}`);
 }
 
-/** Cihaz için gösterilebilir in-app mesajlar. */
-export function fetchInAppMessages(api: SdkApi, subscriptionId: string): Promise<SdkInAppList> {
-  return api.request<SdkInAppList>('GET', `/in-app${queryString({ subscription_id: subscriptionId })}`);
+/**
+ * Cihaz için gösterilebilir in-app mesajlar. `tokenHash` aboneliğin sahiplik kanıtıdır (ADR-0016); kanıtla
+ * kaydolan abonelikler ve e-posta/SMS abonelikleri için sunucu kanıtsız isteği reddeder.
+ */
+export function fetchInAppMessages(
+  api: SdkApi,
+  subscriptionId: string,
+  tokenHash?: string | null,
+): Promise<SdkInAppList> {
+  return api.request<SdkInAppList>(
+    'GET',
+    `/in-app${queryString({ subscription_id: subscriptionId, ...ownershipProof(tokenHash) })}`,
+  );
 }
 
 /** In-app gösterim / tıklama / kapatma olayı (`click` için `button_id` zorunlu; A/B için `variant_id`). */
@@ -166,6 +176,8 @@ export function postInAppEvent(
   messageId: string,
   body: {
     subscription_id: string;
+    /** Aboneliğin sahiplik kanıtı (ADR-0016); varsa gönderilir. */
+    token_hash?: string;
     type: 'impression' | 'click' | 'dismiss';
     button_id?: string;
     variant_id?: string;
@@ -245,11 +257,15 @@ export function preferencesFromApi(result: SdkPreferences): UserPreferences {
   return { preferences, categories: (result.categories ?? []).map(categoryFromApi) };
 }
 
-/** Bildirim kutusu yetkilendirmesi: abonelik kullanıcıya ait olmalı; doğrulama zorunluysa `identity_hash`. */
+/**
+ * Bildirim kutusu yetkilendirmesi: abonelik kullanıcıya ait olmalı; doğrulama zorunluysa `identity_hash`.
+ * `tokenHash` aboneliğin sahiplik kanıtıdır (ADR-0016; push: kayıtlı token, e-posta/SMS: kanonik adres özeti).
+ */
 export interface InboxAuth {
   userId: string;
   subscriptionId: string;
   identityHash?: string | null;
+  tokenHash?: string | null;
 }
 
 export function fetchInbox(
@@ -259,17 +275,17 @@ export function fetchInbox(
 ): Promise<SdkInboxPage> {
   const query = queryString({
     subscription_id: auth.subscriptionId,
-    identity_hash: auth.identityHash,
+    ...ownershipProof(auth.tokenHash, auth.identityHash),
     limit: page.limit,
     cursor: page.cursor,
   });
   return api.request<SdkInboxPage>('GET', `/users/${enc(auth.userId)}/inbox${query}`);
 }
 
-function inboxActionBody(auth: InboxAuth): { subscription_id: string; identity_hash?: string } {
+function inboxActionBody(auth: InboxAuth): { subscription_id: string } & OwnershipProof {
   return {
     subscription_id: auth.subscriptionId,
-    ...(auth.identityHash ? { identity_hash: auth.identityHash } : {}),
+    ...ownershipProof(auth.tokenHash, auth.identityHash),
   };
 }
 
@@ -293,7 +309,10 @@ export function markAllInboxRead(
 }
 
 export function archiveInboxItem(api: SdkApi, auth: InboxAuth, itemId: string): Promise<void> {
-  const query = queryString({ subscription_id: auth.subscriptionId, identity_hash: auth.identityHash });
+  const query = queryString({
+    subscription_id: auth.subscriptionId,
+    ...ownershipProof(auth.tokenHash, auth.identityHash),
+  });
   return api.request<void>('DELETE', `/users/${enc(auth.userId)}/inbox/${enc(itemId)}${query}`);
 }
 

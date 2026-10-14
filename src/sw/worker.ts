@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 import { ErrorReporter } from '../core/errors.js';
 import type { HsPayloadMeta, WorkerMessage } from '../core/types.js';
-import { deliveryIdOf, isJsonObjectText, parsePushPayload, pickClickTarget, postWithRetry, resolveClickUrl, toNotificationOptions } from './payload.js';
+import { FeedbackQueue, IdbFeedbackStore } from './feedback-queue.js';
+import { deliveryIdOf, isJsonObjectText, parsePushPayload, pickClickTarget, resolveClickUrl, safeClickUrl, toNotificationOptions } from './payload.js';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -41,9 +42,18 @@ function deliveryUrl(deliveryId: string, action: 'received' | 'opened' | 'dismis
   return `${API_URL}/sdk/v1/apps/${encodeURIComponent(APP_ID)}/deliveries/${encodeURIComponent(deliveryId)}/${action}`;
 }
 
-/** Teslimat geri bildirimi: ağ/5xx/429 hatalarında geri çekilmeyle en fazla 3 deneme (bkz. postWithRetry). */
-async function post(url: string, body?: unknown): Promise<void> {
-  await postWithRetry((init) => fetch(url, init), body);
+/**
+ * Teslimat geri bildirimi: ağ/5xx/429 hatalarında geri çekilmeyle en fazla 3 deneme; yine gönderilemezse
+ * IndexedDB'ye yazılır ve sonraki push/activate/notificationclick olayında yeniden denenir (B-13).
+ */
+const feedback = new FeedbackQueue({
+  store: new IdbFeedbackStore(),
+  send: (url, init) => fetch(url, init),
+  onStoreError: (err) => errors.record('feedback_store_failed', 'geri bildirim kuyruğu yazılamadı', err, { level: 'warning' }),
+});
+
+function post(url: string, body?: Record<string, unknown>): Promise<boolean> {
+  return feedback.send(url, body);
 }
 
 interface NotificationData {
@@ -64,7 +74,7 @@ self.addEventListener('install', () => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(Promise.all([self.clients.claim(), feedback.drain()]));
 });
 
 self.addEventListener('push', (event) => {
@@ -95,7 +105,7 @@ self.addEventListener('push', (event) => {
         );
         prevented = replies.some(Boolean);
       }
-      // Gösterim, `received` yeniden denemelerini beklemez.
+      // Gösterim, `received` yeniden denemelerini beklemez; önceki gönderilemeyen geri bildirimler de denenir.
       await Promise.all([
         prevented
           ? Promise.resolve()
@@ -103,35 +113,44 @@ self.addEventListener('push', (event) => {
               errors.record('display_failed', 'bildirim gösterilemedi', err);
             }),
         deliveryId ? post(deliveryUrl(deliveryId, 'received')) : Promise.resolve(),
+        feedback.drain(),
       ]);
       await errors.flush();
     })(),
   );
 });
 
+/** Tıklama hedefini açar: eşleşen sekme öne getirilir (gerekirse yönlendirilir), yoksa yeni pencere. */
+async function openClickTarget(url: string): Promise<void> {
+  const clients = (await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) as WindowClient[];
+  const pick = pickClickTarget(clients.map((c) => c.url), url, CLICK_MATCH, CLICK_ACTION);
+  const client = pick ? clients[pick.index] : undefined;
+  if (client) {
+    await client.focus();
+    // Kapsam dışı sekmede navigate() hata verebilir; o durumda yeni pencere açılır.
+    if (pick!.navigate) await client.navigate(url).catch(() => self.clients.openWindow(url));
+  } else {
+    await self.clients.openWindow(url);
+  }
+}
+
 self.addEventListener('notificationclick', (event) => {
   const data = (event.notification.data ?? {}) as NotificationData;
   event.notification.close();
   const actionId = event.action || undefined;
-  const url = resolveClickUrl(data, actionId);
+  // Yalnızca http(s) veya aynı origin'e göreli adres açılır (javascript:/data: vb. reddedilir).
+  const url = safeClickUrl(resolveClickUrl(data, actionId), self.location.origin);
   const deliveryId = deliveryIdOf(data.hs);
+  // Pencere kullanıcı etkileşimi süresi dolmadan hemen açılır; `opened` ve sayfa bildirimi paralel gider.
   event.waitUntil(
-    (async () => {
-      if (deliveryId) await post(deliveryUrl(deliveryId, 'opened'), actionId ? { button_id: actionId } : {});
-      await broadcast({ type: 'hs:notification-click', payload: { title: data.title, body: data.body, url: data.url, actions: data.actions as never, hs: data.hs }, actionId, url });
-      if (url) {
-        const clients = (await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) as WindowClient[];
-        const pick = pickClickTarget(clients.map((c) => c.url), url, CLICK_MATCH, CLICK_ACTION);
-        const client = pick ? clients[pick.index] : undefined;
-        if (client) {
-          await client.focus();
-          // Kapsam dışı sekmede navigate() hata verebilir; o durumda yeni pencere açılır.
-          if (pick!.navigate) await client.navigate(url).catch(() => self.clients.openWindow(url));
-        } else {
-          await self.clients.openWindow(url);
-        }
-      }
-    })(),
+    Promise.all([
+      url
+        ? openClickTarget(url).catch((err: unknown) => errors.record('click_open_failed', 'bildirim adresi açılamadı', err, { level: 'warning' }))
+        : undefined,
+      deliveryId ? post(deliveryUrl(deliveryId, 'opened'), actionId ? { button_id: actionId } : {}) : undefined,
+      broadcast({ type: 'hs:notification-click', payload: { title: data.title, body: data.body, url: data.url, actions: data.actions as never, hs: data.hs }, actionId, url }),
+      feedback.drain(),
+    ]).then(() => errors.flush()),
   );
 });
 
