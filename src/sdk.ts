@@ -12,10 +12,12 @@ import {
   customLinkFromRemote,
   promptBackoffElapsed,
   welcomeFromRemote,
+  showLocationRationale,
   showSlidedown,
   slidedownFromRemote,
   waitForScrollPercent,
 } from './browser/prompts.js';
+import { currentPosition, geolocationPermission, isGeolocationSupported } from './browser/location.js';
 import { renderCustomLinks } from './browser/custom-link.js';
 import { welcomeNotification } from './browser/welcome.js';
 import { InAppManager } from './browser/in-app.js';
@@ -41,6 +43,7 @@ import { normalizeContact } from './core/contact.js';
 import { ErrorReporter } from './core/errors.js';
 import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
+import { locationRefreshDue } from './core/location.js';
 import { Logger } from './core/logger.js';
 import { OfflineQueue } from './core/queue.js';
 import { digest, syncPushToken } from './core/token.js';
@@ -59,6 +62,7 @@ import type {
   InboxChangeEvent,
   InboxListOptions,
   InitOptions,
+  LocationFix,
   LogLevel,
   NotificationClickEvent,
   PreferenceCategory,
@@ -268,11 +272,14 @@ export class HeroSignalSdk {
     this.session.attach();
 
     window.addEventListener('online', () => void this.queue!.flush());
-    // Sayfa gizlenirken biriken olaylar gönderilir.
+    // Sayfa gizlenirken biriken olaylar gönderilir; ön plana dönüşte konum (paylaşım açıksa, 5 dk aralıkla) yenilenir.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') void this.queue?.flush();
+      else void this.refreshLocation();
     });
     await this.queue!.flush();
+    // Oturum başlangıcında konum (yalnızca paylaşım açık ve izin zaten verilmişse).
+    void this.refreshLocation();
 
     if (options.bell?.enabled) {
       this.unmountBell = mountBell(
@@ -577,6 +584,20 @@ export class HeroSignalSdk {
           op.buttonId ? { button_id: op.buttonId } : {},
         );
         return;
+      case 'location': {
+        const subscriptionId = state.subscriptionId;
+        if (!subscriptionId) {
+          // Kayıtlı push aboneliği yoksa sunucuda silinecek konum da yoktur; konum ise abonelik oluşana kadar bekler.
+          if (op.location === null) return;
+          throw new ApiError(0, 'NO_SUBSCRIPTION', 'push aboneliği yok');
+        }
+        // `opted_in` güncellemesiyle aynı sahiplik kanıtı; JWT başlıkta gider. `null`: konum ve rıza kaydı silinir.
+        await this.api!.request('PATCH', `/subscriptions/${subscriptionId}`, {
+          location: op.location,
+          ...ownershipProof(state.tokenHash),
+        });
+        return;
+      }
       case 'contact_add':
         await this.addContactNow(op.channel, op.token);
         return;
@@ -603,6 +624,43 @@ export class HeroSignalSdk {
         return;
       }
     }
+  }
+
+  // --- Konum (v2 Faz 17b) ---
+
+  private locationInFlight = false;
+
+  /**
+   * Paylaşım açık, sayfa ön planda, gizlilik onayı verilmiş ve konum izni zaten varsa konumu alıp kuyruğa yazar
+   * (en sık 5 dakikada bir; `force` aralığı atlar). İzin yoksa istem gösterilmez, hiçbir şey gönderilmez.
+   */
+  private async refreshLocation(force = false): Promise<void> {
+    const store = this.store;
+    if (!store || !this.started || this.consentPending() || this.locationInFlight) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    const state = store.get();
+    if (!locationRefreshDue(state.locationShared, state.locationSentAt, Date.now(), force)) return;
+    this.locationInFlight = true;
+    try {
+      const permission = await geolocationPermission();
+      if (permission === 'denied') store.update({ locationPermissionGranted: false });
+      // Permissions API yoksa yalnızca daha önce `requestPermission` ile izin alındıysa okunur (istem açılmasın).
+      if (permission !== 'granted' && !(permission === 'unknown' && store.get().locationPermissionGranted)) return;
+      const result = await currentPosition();
+      if (result.kind === 'denied') store.update({ locationPermissionGranted: false });
+      if (result.kind === 'fix') this.sendLocation(result.fix);
+    } catch (err) {
+      this.logger.debug('konum alınamadı', err);
+    } finally {
+      this.locationInFlight = false;
+    }
+  }
+
+  /** Konumu kuyruğa yazar; beklerken paylaşım kapatıldıysa veya onay geri çekildiyse gönderilmez. */
+  private sendLocation(fix: LocationFix): void {
+    if (!this.store?.get().locationShared || this.consentPending()) return;
+    this.store.update({ locationSentAt: Date.now() });
+    this.enqueue({ type: 'location', location: fix, at: Date.now() });
   }
 
   // --- E-posta / SMS abonelikleri ---
@@ -1340,6 +1398,60 @@ export class HeroSignalSdk {
     /** E-posta + SMS toplama istemi (tek kutu, iki alan). */
     promptEmailAndSms: (options?: { force?: boolean }): Promise<void> =>
       this.promptContact('email_sms', options?.force === true),
+  };
+
+  /**
+   * Konum paylaşımı (v2 Faz 17b; yalnızca ön plan). Paylaşım açıkken konum oturum başında ve sayfa ön plana döndüğünde
+   * en sık 5 dakikada bir push aboneliğine yazılır; izin yoksa veya gizlilik onayı verilmemişse gönderilmez. İlk konum
+   * sunucuda KVKK açık rıza kaydı sayılır; `setShared(false)` konumu ve rıza kaydını hemen sildirir.
+   */
+  readonly Location = {
+    /** Paylaşımı açar/kapatır (kalıcı). Açılırken izin varsa konum hemen gönderilir; izin için `requestPermission`. */
+    setShared: (shared: boolean): void => {
+      if (!this.store) throw new Error('HeroSignal.init önce çağrılmalı.');
+      const wasShared = this.store.get().locationShared;
+      const enabled = shared === true;
+      this.store.update({ locationShared: enabled, ...(enabled ? {} : { locationSentAt: null }) });
+      if (enabled) {
+        void this.refreshLocation(!wasShared);
+        return;
+      }
+      // Kapatma: sunucudaki konum ve rıza kaydı silinir (onay bekleniyorsa onay verilince gönderilir).
+      if (wasShared) this.enqueue({ type: 'location', location: null, at: Date.now() });
+    },
+    /** Paylaşım açık mı (kalıcı tercih; izin durumundan bağımsız). */
+    get isShared(): boolean {
+      return sdkRef.store?.get().locationShared ?? false;
+    },
+    /**
+     * Konum iznini ister. İzin henüz verilmediyse önce açıklama kutusu gösterilir (`rationale`, yoksa varsayılan metin);
+     * kullanıcı vazgeçerse tarayıcı istemi açılmaz. İzin verildiyse (veya zaten varsa) true; reddedildiyse/desteklenmiyorsa false.
+     * Paylaşım açıksa alınan konum hemen gönderilir.
+     */
+    requestPermission: async (rationale?: string): Promise<boolean> => {
+      if (!this.store) throw new Error('HeroSignal.init önce çağrılmalı.');
+      if (!isGeolocationSupported()) return false;
+      const permission = await geolocationPermission();
+      if (permission === 'denied') {
+        this.store.update({ locationPermissionGranted: false });
+        return false;
+      }
+      // Önce açıklama (verilmezse varsayılan metin); vazgeçilirse tarayıcı istemi hiç açılmaz.
+      if (permission !== 'granted' && typeof document !== 'undefined') {
+        if (!(await showLocationRationale(rationale, this.language))) return false;
+      }
+      // İzin sorulmadıysa tarayıcı istemi burada açılır.
+      const result = await currentPosition();
+      if (result.kind === 'denied') {
+        this.store.update({ locationPermissionGranted: false });
+        return false;
+      }
+      this.store.update({ locationPermissionGranted: true });
+      const state = this.store.get();
+      if (result.kind === 'fix' && this.started && locationRefreshDue(state.locationShared, state.locationSentAt, Date.now()))
+        this.sendLocation(result.fix);
+      return true;
+    },
   };
 
   /** Özel bağlantı istemi: sonradan eklenen `.herosignal-customlink-container` öğeleri için yeniden çizer. */

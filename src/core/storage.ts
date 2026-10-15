@@ -28,6 +28,9 @@ export const DEFAULT_STATE: PersistedState = {
   contactPromptAnswered: false,
   contactPromptDismissedAt: null,
   contactPromptDismissCount: 0,
+  locationShared: false,
+  locationSentAt: null,
+  locationPermissionGranted: false,
 };
 
 /** Bellek içi yedek: localStorage yoksa (gizli mod/kısıtlı tarayıcı) oturum süresince çalışır. */

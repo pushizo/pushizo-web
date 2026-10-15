@@ -39,6 +39,7 @@ export function needsIdentity(op: QueuedOperation): boolean {
     case 'preferences':
     case 'event':
     case 'event_batch':
+    case 'location':
       return true;
     default:
       return false;
@@ -87,7 +88,9 @@ export class OfflineQueue {
   }
 
   enqueue(op: QueuedOperation): void {
-    const queue = [...this.store.get().queue, op];
+    const pending = this.store.get().queue;
+    // Konumda yalnızca son değer anlamlıdır: henüz gönderilmemiş eski konum işlemleri atılır.
+    const queue = [...(op.type === 'location' ? pending.filter((q) => q.type !== 'location') : pending), op];
     // Aynı türden ardışık tag/property yamaları birleştirilir (idempotent merge-patch).
     const merged = mergeTail(queue);
     this.store.update({ queue: merged.slice(-MAX_QUEUE) });
