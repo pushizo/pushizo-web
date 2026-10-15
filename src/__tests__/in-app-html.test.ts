@@ -169,7 +169,7 @@ describe('InAppManager köprü eylemleri', () => {
     const host: InAppHost = {
       api: () => ({}) as never,
       store: () => ({ get: () => state, update: (patch: Partial<typeof state>) => Object.assign(state, patch) }) as never,
-      logger: new Logger('silent' as never),
+      logger: new Logger('silent'),
       language: () => 'tr',
       subscriptionId: () => 'sub_1',
       ownershipHash: () => null,

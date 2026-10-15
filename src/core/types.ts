@@ -151,7 +151,12 @@ export interface PromptOptions {
 
 export interface InitOptions {
   appId: string;
-  /** API kökü, örn. https://api.herosignal.dev (varsayılan: SDK'nın yüklendiği origin). */
+  /**
+   * API kökü, örn. https://api.herosignal.dev (varsayılan: SDK'nın yüklendiği origin). Verilmezse veya global kök
+   * (`https://api.herosignal.dev`) verilirse SDK app yapılandırmasındaki bölgesel adresi (`api_url`) öğrenip kullanır;
+   * özel bir adres verilirse korunur (yalnızca sunucu 421 `HS_WRONG_CELL` ile başka bölgeyi gösterirse oraya
+   * geçilir). Ayrıntı: docs/sdk/web.md.
+   */
   apiUrl?: string;
   /** Service worker yolu (site origin'inde), varsayılan `/HeroSignalSDKWorker.js`. */
   serviceWorkerPath?: string;
@@ -265,6 +270,12 @@ export interface PersistedState {
   locationSentAt: number | null;
   /** `Location.requestPermission` izin aldı (Permissions API olmayan tarayıcılarda istemsiz okuma için). */
   locationPermissionGranted: boolean;
+  /**
+   * Öğrenilen bölgesel API kökü (ADR-0032 §4; config `api_url` veya 421 `HS_WRONG_CELL`) ve öğrenildiği
+   * başlangıç kökü. Başlangıç kökü (init `apiUrl`) değişirse kayıt kullanılmaz.
+   */
+  regionalApiUrl: string | null;
+  regionalApiSeed: string | null;
 }
 
 // --- Kullanıcı tercihleri (ADR-0019 §4) ---

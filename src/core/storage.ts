@@ -31,6 +31,8 @@ export const DEFAULT_STATE: PersistedState = {
   locationShared: false,
   locationSentAt: null,
   locationPermissionGranted: false,
+  regionalApiUrl: null,
+  regionalApiSeed: null,
 };
 
 /** Bellek içi yedek: localStorage yoksa (gizli mod/kısıtlı tarayıcı) oturum süresince çalışır. */
