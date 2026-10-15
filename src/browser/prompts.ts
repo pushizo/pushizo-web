@@ -26,6 +26,11 @@ const TEXTS = {
     smsLabel: 'Telefon numarası',
     invalidEmail: 'Geçerli bir e-posta adresi girin (ör. ad@ornek.com).',
     invalidPhone: 'Telefonu uluslararası biçimde girin (ör. +905321234567).',
+    // Konum izni açıklaması (v2 Faz 17b)
+    locationTitle: 'Konumunuzu paylaşın',
+    locationMessage:
+      'Yakınınızdaki ilgili bildirimleri gönderebilmek için yaklaşık konumunuzu yalnızca site açıkken kullanırız. Bu ayarı istediğiniz zaman kapatabilirsiniz.',
+    locationAccept: 'Devam',
   },
   en: {
     title: 'Enable notifications?',
@@ -42,6 +47,10 @@ const TEXTS = {
     smsLabel: 'Phone number',
     invalidEmail: 'Enter a valid email address (e.g. name@example.com).',
     invalidPhone: 'Enter the phone in international format (e.g. +14155550100).',
+    locationTitle: 'Share your location',
+    locationMessage:
+      'We use your approximate location only while the site is open, to send you relevant nearby notifications. You can turn this off at any time.',
+    locationAccept: 'Continue',
   },
 };
 
@@ -301,6 +310,19 @@ export function showSlidedown(options: SlidedownOptions, language: string, curre
     document.body.appendChild(box);
     if (isCollect) box.querySelector<HTMLInputElement>('.hs-field input')?.focus();
   });
+}
+
+/**
+ * Konum izni öncesi açıklama (rationale): slidedown kutusunda uygulamanın verdiği metin (yoksa varsayılan metin)
+ * gösterilir. Kabul edilirse tarayıcının konum istemi açılır; reddedilirse istem hiç gösterilmez.
+ */
+export async function showLocationRationale(message: string | undefined, language: string): Promise<boolean> {
+  const t = texts(language);
+  const result = await showSlidedown(
+    { title: t.locationTitle, message: message || t.locationMessage, acceptText: t.locationAccept, cancelText: t.cancel },
+    language,
+  );
+  return result.accepted;
 }
 
 /** Abone ol / çık düğmesi (bell). */

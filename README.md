@@ -35,6 +35,7 @@ Site kökünde `HeroSignalSDKWorker.js` bulunmalıdır (içeriği API'deki worke
 | `InAppMessages` | `addTrigger(s)`, `removeTrigger(s)`, `clearTriggers`, `getTriggers`, `setScreen`, `addClickListener`, `addLifecycleListener`, `paused` |
 | `Inbox` | `list`, `markRead`, `markAllRead`, `archive`, `unreadCount`, `addObserver` |
 | `CustomLink` | `render` |
+| `Location` | `setShared(bool)`, `isShared`, `requestPermission(rationale?)` (yalnızca ön plan; ayrıntı `docs/sdk/web.md` "Konum") |
 
 ## Faz 12 (ADR-0019) eklemeleri
 
@@ -72,4 +73,4 @@ npm run -w sdk/web build       # dist/index.js (ESM), dist/HeroSignalSDK.js (IIF
 npm run -w sdk/web typecheck
 npx vitest run --project unit sdk/web
 ```
-Boyut bütçesi: IIFE gzip < 25 KB (~22,2 KB), service worker gzip < 5 KB (~3,1 KB).
+Boyut bütçesi: IIFE gzip < 25 KB (~24,0 KB), service worker gzip < 5 KB (~3,9 KB).

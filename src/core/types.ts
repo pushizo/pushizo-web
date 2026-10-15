@@ -4,6 +4,13 @@ export type PermissionState = 'default' | 'granted' | 'denied' | 'unsupported';
 
 export type Channel = 'ios_push' | 'android_push' | 'web_push' | 'email' | 'sms';
 
+/** Konum (`PATCH /subscriptions/{id}` `location` alanı): enlem -90..90, boylam -180..180, doğruluk 0..100000 m. */
+export interface LocationFix {
+  lat: number;
+  lng: number;
+  accuracy_m?: number;
+}
+
 export interface DeviceInfo {
   model?: string;
   os?: string;
@@ -252,6 +259,12 @@ export interface PersistedState {
   /** E-posta/SMS toplama isteminin son reddi ve ret sayısı (push istemiyle aynı geri çekilme takvimi). */
   contactPromptDismissedAt: number | null;
   contactPromptDismissCount: number;
+  /** `Location.setShared`: konum paylaşımı açık mı (kalıcı; varsayılan kapalı). */
+  locationShared: boolean;
+  /** Son konum gönderiminin kuyruğa yazıldığı an (epoch ms); 5 dk aralık için. */
+  locationSentAt: number | null;
+  /** `Location.requestPermission` izin aldı (Permissions API olmayan tarayıcılarda istemsiz okuma için). */
+  locationPermissionGranted: boolean;
 }
 
 // --- Kullanıcı tercihleri (ADR-0019 §4) ---
@@ -469,6 +482,8 @@ export type QueuedOperation =
     }
   /** Kullanıcı tercihleri (`User.setPreferences`); gönderim anındaki abonelik kanıtıyla yazılır. */
   | { type: 'preferences'; preferences: PreferenceInput[]; at: number }
+  /** Konum (`Location.setShared`): push aboneliğine PATCH edilir; `null` sunucudaki konumu ve rıza kaydını siler. */
+  | { type: 'location'; location: LocationFix | null; at: number }
   /** Kuyruk flush'ında ardışık olaylardan oluşturulan toplu gönderim (kalıcı saklanmaz). */
   | { type: 'event_batch'; events: Extract<QueuedOperation, { type: 'event' }>[]; at: number };
 
