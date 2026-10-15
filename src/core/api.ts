@@ -1,3 +1,4 @@
+import { wrongCellTarget } from './cell.js';
 import type { Logger } from './logger.js';
 import type {
   Channel,
@@ -21,6 +22,8 @@ export interface ApiOptions {
   maxRetries?: number;
   /** Geçerli kimlik JWT'si (identity verification `jwt`/`both`); her istekte okunur. */
   identityToken?: () => string | null;
+  /** API kökü 421 `HS_WRONG_CELL` ile değiştiğinde (ADR-0032 §4); kalıcı saklamak için. */
+  onBaseUrlChange?: (baseUrl: string) => void;
 }
 
 export class ApiError extends Error {
@@ -50,8 +53,10 @@ export class SdkApi {
   private readonly fetchImpl: typeof fetch;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly maxRetries: number;
+  private base: string;
 
   constructor(private readonly options: ApiOptions) {
+    this.base = options.baseUrl.replace(/\/$/, '');
     this.fetchImpl = options.fetch ?? ((input, init) => fetch(input, init));
     this.sleep = options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.maxRetries = options.maxRetries ?? BACKOFF_MS.length;
@@ -69,12 +74,24 @@ export class SdkApi {
     return headers;
   }
 
+  /** Geçerli API kökü (sondaki `/` olmadan). */
+  get baseUrl(): string {
+    return this.base;
+  }
+
+  /** API kökünü değiştirir (bölgesel adres, ADR-0032 §4); sonraki istekler yeni kökü kullanır. */
+  setBaseUrl(baseUrl: string): void {
+    this.base = baseUrl.replace(/\/$/, '');
+  }
+
   get appBase(): string {
-    return `${this.options.baseUrl.replace(/\/$/, '')}/sdk/v1/apps/${encodeURIComponent(this.options.appId)}`;
+    return `${this.base}/sdk/v1/apps/${encodeURIComponent(this.options.appId)}`;
   }
 
   async request<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
     let attempt = 0;
+    // İstek başına en fazla bir hücre yönlendirmesi izlenir (iki hücre birbirini gösterirse döngü olmaz).
+    let rerouted = false;
     for (;;) {
       try {
         const response = await this.fetchImpl(`${this.appBase}${path}`, {
@@ -95,6 +112,14 @@ export class SdkApi {
           envelope = (await response.json()) as ErrorEnvelope;
         } catch {
           envelope = {};
+        }
+        const target = rerouted ? null : wrongCellTarget(response.status, envelope, this.base);
+        if (target) {
+          this.options.logger.info('app başka bir veri bölgesinde; API kökü değişti', target);
+          this.base = target;
+          rerouted = true;
+          this.options.onBaseUrlChange?.(target);
+          continue;
         }
         const err = new ApiError(response.status, envelope.error?.code ?? `HTTP_${response.status}`, envelope.error?.message ?? `HTTP ${response.status}`, envelope.error?.details);
         if (!err.retryable || attempt >= this.maxRetries) throw err;
@@ -370,6 +395,9 @@ export interface SdkConfig {
   identity_verification_required: boolean;
   /** Kabul edilen kimlik kanıtı (eski API'lerde yoksa `hmac`). */
   identity_verification_mode?: 'hmac' | 'jwt' | 'both';
+  /** App'in veri bölgesindeki API kökü ve hücre kimliği (ADR-0032 §4; eski API'lerde yok). */
+  api_url?: string | null;
+  cell_id?: string | null;
   platforms: { ios: boolean; android: boolean; web: boolean; email: boolean; sms: boolean };
   web: {
     vapid_public_key: string | null;

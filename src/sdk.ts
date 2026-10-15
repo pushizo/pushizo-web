@@ -1,5 +1,6 @@
 import {
   currentPermission,
+  detectSiteIcon,
   isPushSupported,
   isSecureContextOk,
   subscriptionToToken,
@@ -39,6 +40,7 @@ import {
   type SdkConfig,
   type UserResult,
 } from './core/api.js';
+import { acceptApiUrl, isExplicitApiUrl } from './core/cell.js';
 import { normalizeContact } from './core/contact.js';
 import { ErrorReporter } from './core/errors.js';
 import { newEventId } from './core/event-id.js';
@@ -89,6 +91,8 @@ export class HeroSignalSdk {
   private readonly logger = new Logger();
   private options: InitOptions | null = null;
   private api: SdkApi | null = null;
+  /** Başlangıç API kökü (init `apiUrl` veya SDK'nın yüklendiği origin); öğrenilen bölgesel kök buna bağlanır. */
+  private apiSeed = '';
   private store: StateStore | null = null;
   private queue: OfflineQueue | null = null;
   private push: WebPushManager | null = null;
@@ -145,13 +149,19 @@ export class HeroSignalSdk {
     if (options.logLevel) this.logger.setLevel(options.logLevel);
     this.language =
       options.language ?? (typeof navigator !== 'undefined' ? navigator.language : 'en');
-    const apiUrl = (options.apiUrl ?? inferApiUrl()).replace(/\/$/, '');
+    const seed = (options.apiUrl ?? inferApiUrl()).replace(/\/$/, '');
+    this.apiSeed = seed;
     this.store = new StateStore(options.appId);
+    const saved = this.store.get();
+    // Daha önce öğrenilen bölgesel kök, aynı başlangıç kökü için kullanılır (ADR-0032 §4).
+    const regional =
+      saved.regionalApiSeed === seed ? acceptApiUrl(saved.regionalApiUrl, seed) : null;
     this.api = new SdkApi({
-      baseUrl: apiUrl,
+      baseUrl: regional ?? seed,
       appId: options.appId,
       logger: this.logger,
       identityToken: () => this.store?.get().identityJwt ?? null,
+      onBaseUrlChange: (url) => this.store?.update({ regionalApiUrl: url, regionalApiSeed: seed }),
       // Son savunma hattı: gizlilik onayı yokken hiçbir yoldan ağ isteği çıkmaz (KVKK/GDPR, plan 06 §6.1).
       fetch: (input, init) =>
         this.consentPending()
@@ -210,7 +220,9 @@ export class HeroSignalSdk {
       return;
     }
     this.queue?.clear();
-    this.store.reset({ consentGiven: false, pageViews: this.store.get().pageViews });
+    const { pageViews, regionalApiUrl, regionalApiSeed } = this.store.get();
+    // Bölgesel API kökü kişisel veri değildir; onay geri alınsa da yönlendirme bilgisi korunur.
+    this.store.reset({ consentGiven: false, pageViews, regionalApiUrl, regionalApiSeed });
   }
 
   private async start(): Promise<void> {
@@ -220,6 +232,7 @@ export class HeroSignalSdk {
     // Yapılandırma önce alınır: service worker yolu/kapsamı ve istem ayarları dashboard'dan gelebilir.
     try {
       this.config = await this.api!.request<SdkConfig>('GET', '/config');
+      this.adoptRegionalApiUrl(this.config.api_url);
     } catch (err) {
       this.logger.error('app yapılandırması alınamadı', err);
       this.reportError('config_failed', 'app yapılandırması alınamadı', err);
@@ -303,6 +316,22 @@ export class HeroSignalSdk {
         remotePrompt.type === 'native' ? 'native' : 'slidedown',
       );
     }
+  }
+
+  /**
+   * Config `api_url`: init'te `apiUrl` verilmediyse (veya global varsayılan köke eşitse) app'in bölgesel API kökü
+   * benimsenir ve saklanır. Özel `apiUrl` geliştiricinin kararıdır (kendi alan adı/vekil sunucu) ve korunur.
+   */
+  private adoptRegionalApiUrl(candidate: unknown): void {
+    if (isExplicitApiUrl(this.options!.apiUrl) || !this.api) return;
+    const next = acceptApiUrl(candidate, this.api.baseUrl);
+    if (!next || next === this.api.baseUrl) return;
+    this.logger.info('bölgesel API kökü kullanılıyor', next);
+    this.api.setBaseUrl(next);
+    this.store!.update({
+      regionalApiUrl: next,
+      regionalApiSeed: this.apiSeed,
+    });
   }
 
   private async syncExistingSubscription(): Promise<void> {
@@ -921,7 +950,7 @@ export class HeroSignalSdk {
           display: async () => {
             if (!prevented || displayed || !this.push) return;
             displayed = true;
-            const { title, options } = toNotificationOptions(payload);
+            const { title, options } = toNotificationOptions(payload, detectSiteIcon(document));
             await this.push.showLocalNotification(title, options);
           },
         };

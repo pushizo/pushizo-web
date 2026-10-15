@@ -67,6 +67,9 @@ export class WebPushManager {
     url.searchParams.set('apiUrl', this.options.apiUrl);
     if (this.options.clickMatch) url.searchParams.set('clickMatch', this.options.clickMatch);
     if (this.options.clickAction) url.searchParams.set('clickAction', this.options.clickAction);
+    // Bildirimde ikon gelmezse sitenin kendi ikonu kullanılır (eski sağlayıcı davranışı).
+    const siteIcon = detectSiteIcon(document);
+    if (siteIcon) url.searchParams.set('defaultIcon', siteIcon);
     const registration = await navigator.serviceWorker.register(url.toString(), { scope: this.options.serviceWorkerScope });
     await navigator.serviceWorker.ready;
     this.registration = registration;
@@ -146,4 +149,21 @@ export function subscriptionToToken(json: PushSubscriptionJSON | null | undefine
   const auth = json?.keys?.auth;
   if (!endpoint || !/^https:\/\//.test(endpoint) || !p256dh || !auth) return null;
   return JSON.stringify({ endpoint, keys: { p256dh, auth } });
+}
+
+/**
+ * Sitenin ikonu: `apple-touch-icon` (genelde 180 px, bildirimde net görünür) → en büyük `icon` bağlantısı →
+ * `/favicon.ico`. Yalnızca http(s) mutlak adres döner; `data:`/`blob:` gibi adresler SW parametresine konmaz.
+ */
+export function detectSiteIcon(doc: Document): string | undefined {
+  const links = Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel~="apple-touch-icon"]'));
+  const size = (l: HTMLLinkElement) => Math.max(0, ...(l.getAttribute('sizes') ?? '').split(/\s+/).map((s) => Number.parseInt(s, 10) || 0));
+  const score = (l: HTMLLinkElement) => ((l.getAttribute('rel') ?? '').split(/\s+/).includes('apple-touch-icon') ? 10_000 : 0) + size(l);
+  const href = links.sort((a, b) => score(b) - score(a)).find((l) => l.getAttribute('href'))?.href ?? new URL('/favicon.ico', doc.baseURI).href;
+  try {
+    const url = new URL(href, doc.baseURI);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
 }

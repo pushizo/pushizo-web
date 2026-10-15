@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { rebaseSdkUrl, sdkUrlBase, WRONG_CELL_STATUS, wrongCellTarget } from '../core/cell.js';
 import { ErrorReporter } from '../core/errors.js';
 import type { HsPayloadMeta, WorkerMessage } from '../core/types.js';
 import { FeedbackQueue, IdbFeedbackStore } from './feedback-queue.js';
@@ -13,10 +14,13 @@ declare const self: ServiceWorkerGlobalScope;
  */
 const params = new URL(self.location.href).searchParams;
 const APP_ID = params.get('appId') ?? '';
-const API_URL = (params.get('apiUrl') ?? self.location.origin).replace(/\/$/, '');
+/** API kökü; 421 `HS_WRONG_CELL` ile bölgesel köke geçilir (ADR-0032 §4; sayfa SW'yi yeni kökle yeniden kaydeder). */
+let apiUrl = (params.get('apiUrl') ?? self.location.origin).replace(/\/$/, '');
 /** Tıklama davranışı (init `notificationClickHandlerMatch`/`Action`; varsayılan exact + navigate). */
 const CLICK_MATCH = params.get('clickMatch');
 const CLICK_ACTION = params.get('clickAction');
+/** Bildirimde ikon yoksa kullanılacak site ikonu (sayfa SW kaydında `defaultIcon` ile iletir). */
+const DEFAULT_ICON = params.get('defaultIcon') ?? undefined;
 const STORE = 'hs-sw-config';
 const SDK_VERSION = typeof __HS_SDK_VERSION__ === 'string' ? __HS_SDK_VERSION__ : '0.0.0-dev';
 
@@ -28,7 +32,7 @@ const errors = new ErrorReporter({
   sdkVersion: SDK_VERSION,
   flushDelayMs: 60_000,
   send: async (body) => {
-    await fetch(`${API_URL}/sdk/v1/apps/${encodeURIComponent(APP_ID)}/errors`, {
+    await fetch(`${apiUrl}/sdk/v1/apps/${encodeURIComponent(APP_ID)}/errors`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -39,7 +43,22 @@ const errors = new ErrorReporter({
 });
 
 function deliveryUrl(deliveryId: string, action: 'received' | 'opened' | 'dismissed'): string {
-  return `${API_URL}/sdk/v1/apps/${encodeURIComponent(APP_ID)}/deliveries/${encodeURIComponent(deliveryId)}/${action}`;
+  return `${apiUrl}/sdk/v1/apps/${encodeURIComponent(APP_ID)}/deliveries/${encodeURIComponent(deliveryId)}/${action}`;
+}
+
+/**
+ * 421 `HS_WRONG_CELL` yanıtında `details.api_url` (doğrulanmış, https) kökle istek bir kez yeniden gönderilir;
+ * kuyruktaki eski kök adresli öğeler de böylece doğru bölgeye ulaşır.
+ */
+async function cellAwareFetch(url: string, init: RequestInit): Promise<Response> {
+  const response = await fetch(url, init);
+  const base = sdkUrlBase(url);
+  if (response.status !== WRONG_CELL_STATUS || base === null) return response;
+  const target = wrongCellTarget(response.status, await response.clone().json().catch(() => null), base);
+  const next = target && rebaseSdkUrl(url, target);
+  if (!target || !next) return response;
+  apiUrl = target;
+  return fetch(next, init);
 }
 
 /**
@@ -48,7 +67,7 @@ function deliveryUrl(deliveryId: string, action: 'received' | 'opened' | 'dismis
  */
 const feedback = new FeedbackQueue({
   store: new IdbFeedbackStore(),
-  send: (url, init) => fetch(url, init),
+  send: cellAwareFetch,
   onStoreError: (err) => errors.record('feedback_store_failed', 'geri bildirim kuyruğu yazılamadı', err, { level: 'warning' }),
 });
 
@@ -82,7 +101,7 @@ self.addEventListener('push', (event) => {
   if (raw && !isJsonObjectText(raw)) errors.record('push_parse_failed', 'push gövdesi JSON nesnesi değil', undefined, { level: 'warning' });
   const payload = parsePushPayload(raw);
   const deliveryId = deliveryIdOf(payload.hs);
-  const { title, options } = toNotificationOptions(payload);
+  const { title, options } = toNotificationOptions(payload, DEFAULT_ICON);
   event.waitUntil(
     (async () => {
       // Ön plan dinleyicisi gösterimi engelleyebilir; bunun için önce sayfaya haber verilir.
