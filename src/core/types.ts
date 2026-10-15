@@ -365,7 +365,19 @@ export type InAppBlock =
       action: InAppAction;
       background_color: string | null;
       text_color: string | null;
-    };
+    }
+  /** Yatay kaydırmalı kartlar (ADR-0027); SDK `supports=carousel` bildirdiğinde gelir. */
+  | { type: 'carousel'; id: string; cards: InAppCarouselCard[] };
+
+/** Carousel kartı: görsel, başlık, metin ve isteğe bağlı düğme (metinler kullanıcının dilinde). */
+export interface InAppCarouselCard {
+  id: string;
+  title: string;
+  body: string | null;
+  image_url: string | null;
+  image_alt: string | null;
+  button: { id: string; text: string; action: InAppAction } | null;
+}
 
 export type InAppLayout = 'modal' | 'banner_top' | 'banner_bottom' | 'fullscreen';
 
@@ -375,6 +387,11 @@ export interface InAppDisplay {
   text_color: string | null;
   dismissible: boolean;
   auto_dismiss_seconds: number | null;
+  /** `html`: `html` sandbox'lı iframe'de çizilir (ADR-0027); yoksa `blocks` (eski sunucu). */
+  content_type?: 'blocks' | 'html';
+  html?: string | null;
+  /** HTML içerik başlangıç yüksekliği (px); köprü `resize` ile güncellenir. */
+  html_height?: number | null;
   blocks: InAppBlock[];
 }
 
@@ -458,7 +475,16 @@ export interface InboxChangeEvent {
 export type QueuedOperation =
   | { type: 'tags'; tags: Record<string, string | null>; at: number }
   | { type: 'properties'; properties: Record<string, unknown>; at: number }
-  | { type: 'event'; name: string; properties?: Record<string, unknown>; value?: number; occurredAt: string; at: number }
+  | {
+      type: 'event';
+      name: string;
+      properties?: Record<string, unknown>;
+      value?: number;
+      occurredAt: string;
+      /** İstemci olay kimliği: yeniden denemede sunucu aynı olayı ikinci kez kaydetmez (eski kuyruk öğelerinde yok). */
+      eventId?: string;
+      at: number;
+    }
   | { type: 'session_start'; at: number }
   | { type: 'session_end'; durationSeconds: number; at: number }
   /** `aliases` yeni biçim; `label`/`value` eski sürümlerin kuyruğa yazdığı tekil alias. */

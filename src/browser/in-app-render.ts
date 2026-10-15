@@ -1,7 +1,13 @@
+import type { HtmlBridgeAction } from '../core/html-bridge.js';
 import { safeColor, safeHttpUrl } from '../core/in-app-logic.js';
 import type { InAppBlock, InAppMessage } from '../core/types.js';
+import { renderHtmlFrame, type HtmlFrame } from './in-app-html.js';
 
 export type InAppButtonBlock = Extract<InAppBlock, { type: 'button' }>;
+type CarouselBlock = Extract<InAppBlock, { type: 'carousel' }>;
+
+/** HTML in-app köprüsünden gelen (doğrulanmış) eylem; `close` kullanıcı kapatması olarak `onDismiss`'e gider. */
+export type InAppBridgeAction = Exclude<HtmlBridgeAction, { type: 'ready' | 'resize' | 'close' }>;
 
 export interface InAppRenderOptions {
   /** Kapat düğmesi ve varsayılan etiket dili. */
@@ -12,6 +18,8 @@ export interface InAppRenderOptions {
   onDismiss: () => void;
   /** Banner `auto_dismiss_seconds` doldu. */
   onAutoDismiss: () => void;
+  /** HTML in-app köprü eylemi (tıklama, tag, olay). */
+  onBridge?: (action: InAppBridgeAction) => void;
   /** Testler için belge. */
   doc?: Document;
 }
@@ -24,12 +32,13 @@ export interface RenderedInApp {
 }
 
 const TEXTS = {
-  tr: { close: 'Kapat', message: 'Mesaj' },
-  en: { close: 'Close', message: 'Message' },
+  tr: { close: 'Kapat', message: 'Mesaj', carousel: 'Kartlar', previous: 'Önceki kart', next: 'Sonraki kart', slide: (n: number, total: number) => `Kart ${n}/${total}` },
+  en: { close: 'Close', message: 'Message', carousel: 'Cards', previous: 'Previous card', next: 'Next card', slide: (n: number, total: number) => `Card ${n} of ${total}` },
 };
+type Texts = (typeof TEXTS)['tr'];
 
 const FOCUSABLE =
-  'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  'button:not([disabled]), [href], input, select, textarea, iframe, [tabindex]:not([tabindex="-1"])';
 
 // Stil Shadow DOM içinde izoledir; sayfa CSS'i mesajı, mesaj CSS'i sayfayı etkilemez.
 const CSS = `
@@ -58,7 +67,23 @@ const CSS = `
 .hs-button:hover{filter:brightness(1.08)}
 .hs-close{position:absolute;top:6px;right:6px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:inherit;font:400 26px/1 system-ui,sans-serif;cursor:pointer;opacity:.75}
 .hs-close:hover{opacity:1;background:rgba(127,127,127,.18)}
-.hs-button:focus-visible,.hs-close:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+.hs-button:focus-visible,.hs-close:focus-visible,.hs-nav:focus-visible,.hs-track:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+.hs-carousel{position:relative;margin:0 0 12px}
+.hs-track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding:2px 2px 8px;-webkit-overflow-scrolling:touch}
+.hs-slide{flex:0 0 85%;scroll-snap-align:start;box-sizing:border-box;border:1px solid rgba(127,127,127,.25);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.hs-slide img{display:block;width:100%;height:140px;object-fit:cover;border-radius:8px}
+.hs-slide h3{margin:0;font-size:16px;line-height:1.3}
+.hs-slide p{margin:0;opacity:.9;white-space:pre-line;overflow-wrap:anywhere}
+.hs-slide .hs-button{margin-top:auto}
+.hs-carousel-nav{display:flex;justify-content:flex-end;gap:8px}
+.hs-nav{width:44px;height:44px;border:1px solid rgba(127,127,127,.35);border-radius:50%;background:transparent;color:inherit;font:400 20px/1 system-ui,sans-serif;cursor:pointer}
+.hs-html{padding:0;overflow:hidden}
+.hs-html .hs-close{z-index:1;background:rgba(127,127,127,.25)}
+.hs-html-frame{display:block;width:100%;border:0;background:transparent}
+.hs-fullscreen.hs-html{padding:0;display:block}
+.hs-fullscreen.hs-html .hs-html-frame{height:100vh}
+.hs-banner.hs-html{padding:0}
+@media (prefers-reduced-motion:reduce){.hs-track{scroll-behavior:auto}}
 @media (prefers-color-scheme:dark){.hs-card{background:var(--hs-bg,#1f2227);color:var(--hs-fg,#f3f4f6)}}
 @media (prefers-reduced-motion:reduce){.hs-backdrop,.hs-fullscreen,.hs-banner{animation:none}}
 @keyframes hs-fade{from{opacity:0}to{opacity:1}}
@@ -114,11 +139,33 @@ export function renderInAppMessage(
   content.className = 'hs-content';
   card.appendChild(content);
 
+  // HTML içerik (ADR-0027): sandbox'lı iframe; köprü eylemleri yöneticiye iletilir.
+  let frame: HtmlFrame | null = null;
+  const isHtml = display.content_type === 'html' && typeof display.html === 'string';
+  if (isHtml) {
+    card.classList.add('hs-html');
+    const height = display.layout === 'fullscreen' ? null : (display.html_height ?? (display.layout === 'modal' ? 360 : 120));
+    frame = renderHtmlFrame({
+      html: display.html as string,
+      language: options.language,
+      title: t.message,
+      height,
+      doc,
+      onAction: (action) => {
+        if (action.type === 'close') options.onDismiss();
+        else options.onBridge?.(action);
+      },
+      // İçerik kendi içinde gezinemez: dış sayfaya gitmeye çalışırsa mesaj kapanır.
+      onNavigationAttempt: () => options.onDismiss(),
+    });
+    content.appendChild(frame.iframe);
+  }
+
   // Ardışık düğme blokları tek eylem satırında toplanır; blok sırası korunur.
   let actions: HTMLDivElement | null = null;
   let labelled = false;
   let described = false;
-  for (const block of display.blocks) {
+  for (const block of isHtml ? [] : display.blocks) {
     if (block.type !== 'button') actions = null;
     switch (block.type) {
       case 'image': {
@@ -174,6 +221,9 @@ export function renderInAppMessage(
         actions.appendChild(button);
         break;
       }
+      case 'carousel':
+        content.appendChild(renderCarousel(doc, block, t, `${uid}-${block.id}`, options));
+        break;
     }
   }
   if (!labelled) card.setAttribute('aria-label', t.message);
@@ -246,8 +296,8 @@ export function renderInAppMessage(
   doc.body.appendChild(host);
 
   if (isBlocking) {
-    // İlk eylem düğmesi, yoksa kapat düğmesi, o da yoksa diyalog odaklanır.
-    const target = card.querySelector<HTMLElement>('.hs-button') ?? focusables()[0] ?? card;
+    // İlk eylem düğmesi (HTML'de iframe), yoksa kapat düğmesi, o da yoksa diyalog odaklanır.
+    const target = card.querySelector<HTMLElement>('.hs-button, .hs-html-frame') ?? focusables()[0] ?? card;
     target.focus();
     doc.addEventListener('focusin', onFocusIn);
   }
@@ -263,10 +313,101 @@ export function renderInAppMessage(
       if (closed) return;
       closed = true;
       if (timer) clearTimeout(timer);
+      frame?.destroy();
       doc.removeEventListener('keydown', onKeyDown, true);
       doc.removeEventListener('focusin', onFocusIn);
       host.remove();
       if (isBlocking && previous?.isConnected) previous.focus();
     },
   };
+}
+
+/**
+ * Carousel: yatay kaydırmalı (scroll-snap) kartlar; ok düğmeleri ve klavye (←/→) ile gezinme. Her kart
+ * `role="group"` + `aria-roledescription="slide"` ve "Kart n/N" etiketi taşır. Metinler yalnızca `textContent`.
+ */
+function renderCarousel(doc: Document, block: CarouselBlock, t: Texts, uid: string, options: InAppRenderOptions): HTMLElement {
+  const root = doc.createElement('div');
+  root.className = 'hs-carousel';
+  root.setAttribute('role', 'region');
+  root.setAttribute('aria-roledescription', 'carousel');
+  root.setAttribute('aria-label', t.carousel);
+  const track = doc.createElement('div');
+  track.className = 'hs-track';
+  track.id = `${uid}-track`;
+  track.tabIndex = 0;
+  root.appendChild(track);
+  const cards = Array.isArray(block.cards) ? block.cards : [];
+  cards.forEach((card, i) => {
+    const slide = doc.createElement('div');
+    slide.className = 'hs-slide';
+    slide.setAttribute('role', 'group');
+    slide.setAttribute('aria-roledescription', 'slide');
+    slide.setAttribute('aria-label', t.slide(i + 1, cards.length));
+    slide.setAttribute('data-hs-card-id', card.id);
+    const src = safeHttpUrl(card.image_url);
+    if (src) {
+      const img = doc.createElement('img');
+      img.src = src;
+      img.alt = card.image_alt ?? '';
+      img.loading = 'lazy';
+      slide.appendChild(img);
+    }
+    const h3 = doc.createElement('h3');
+    h3.textContent = card.title;
+    slide.appendChild(h3);
+    if (card.body) {
+      const p = doc.createElement('p');
+      p.textContent = card.body;
+      slide.appendChild(p);
+    }
+    if (card.button) {
+      const b = card.button;
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.className = 'hs-button';
+      button.textContent = b.text;
+      button.setAttribute('data-hs-button-id', b.id);
+      button.addEventListener('click', () =>
+        options.onButton({ type: 'button', id: b.id, text: b.text, action: b.action, background_color: null, text_color: null }),
+      );
+      slide.appendChild(button);
+    }
+    track.appendChild(slide);
+  });
+  const scrollStep = (dir: 1 | -1): void => {
+    const first = track.firstElementChild as HTMLElement | null;
+    const step = (first?.offsetWidth ?? track.clientWidth) + 12;
+    if (typeof track.scrollBy === 'function') track.scrollBy({ left: dir * step, behavior: 'smooth' });
+    else track.scrollLeft += dir * step;
+  };
+  track.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      scrollStep(1);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      scrollStep(-1);
+    }
+  });
+  if (cards.length > 1) {
+    const nav = doc.createElement('div');
+    nav.className = 'hs-carousel-nav';
+    const buttons: [1 | -1, string, string][] = [
+      [-1, t.previous, '\u2039'],
+      [1, t.next, '\u203a'],
+    ];
+    for (const [dir, label, glyph] of buttons) {
+      const btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hs-nav';
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('aria-controls', track.id);
+      btn.textContent = glyph;
+      btn.addEventListener('click', () => scrollStep(dir));
+      nav.appendChild(btn);
+    }
+    root.appendChild(nav);
+  }
+  return root;
 }

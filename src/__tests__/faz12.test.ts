@@ -157,7 +157,7 @@ describe('in-app: A/B varyantı, app geneli aralık ve tetik grupları', () => {
     await vi.waitFor(() => expect(api.find('GET', '/in-app')).toHaveLength(1));
     // E-posta aboneliğinin sahiplik kanıtı (kanonik adresin özeti) liste ve olay isteklerine eklenir.
     const mailHash = await digest('a@example.com');
-    expect(api.find('GET', '/in-app')[0]!.query).toEqual({ subscription_id: 'sub_mail', token_hash: mailHash });
+    expect(api.find('GET', '/in-app')[0]!.query).toEqual({ subscription_id: 'sub_mail', token_hash: mailHash, supports: 'html,carousel' });
 
     hs.Session.sendEvent('e1');
     await vi.waitFor(() => expect(shown('iam_a')).toBe(true));

@@ -41,6 +41,7 @@ import {
 } from './core/api.js';
 import { normalizeContact } from './core/contact.js';
 import { ErrorReporter } from './core/errors.js';
+import { newEventId } from './core/event-id.js';
 import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
 import { locationRefreshDue } from './core/location.js';
@@ -120,6 +121,7 @@ export class HeroSignalSdk {
     // `push_prompt`: mevcut izin + abonelik akışı; `outcome`: mevcut olay API'si.
     requestPushPermission: () => this.Notifications.requestPermission(),
     sendOutcome: (name, value) => this.Session.sendEvent(name, undefined, value),
+    sendEvent: (name, properties) => this.Session.sendEvent(name, properties),
     globalMinIntervalSeconds: () => this.config?.in_app?.min_interval_seconds ?? 0,
     reportError: (code, message, err) => this.reportError(code, message, err),
   });
@@ -532,6 +534,7 @@ export class HeroSignalSdk {
             properties: e.properties ?? {},
             value: e.value,
             occurred_at: e.occurredAt,
+            event_id: e.eventId,
             ...owner,
           })),
         });
@@ -1467,6 +1470,7 @@ export class HeroSignalSdk {
         properties,
         value,
         occurredAt: new Date().toISOString(),
+        eventId: newEventId(),
         at: Date.now(),
       });
       // Olay adı in-app `event` tetiklerini değerlendirir.

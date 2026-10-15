@@ -20,7 +20,12 @@ import type {
   InAppTriggerValue,
   QueuedOperation,
 } from '../core/types.js';
-import { renderInAppMessage, type InAppButtonBlock, type RenderedInApp } from './in-app-render.js';
+import {
+  renderInAppMessage,
+  type InAppBridgeAction,
+  type InAppButtonBlock,
+  type RenderedInApp,
+} from './in-app-render.js';
 
 /** Liste en fazla bu sıklıkla yenilenir (docs/messaging.md §7). */
 export const IN_APP_REFRESH_MS = 5 * 60_000;
@@ -46,6 +51,8 @@ export interface InAppHost {
   requestPushPermission: () => Promise<unknown>;
   /** `outcome` aksiyonu: olay gönderimi (mevcut `Session.sendEvent`). */
   sendOutcome: (name: string, value?: number) => void;
+  /** HTML in-app köprüsü `trackEvent(name, props)`: özellikli olay (mevcut `Session.sendEvent`). */
+  sendEvent?: (name: string, properties: Record<string, string | number | boolean | null>) => void;
   /** App geneli gösterim aralığı (`config.in_app.min_interval_seconds`); yoksa 0. */
   globalMinIntervalSeconds: () => number;
   reportError: (code: string, message: string, err?: unknown) => void;
@@ -332,6 +339,7 @@ export class InAppManager {
         onButton: (button) => this.handleButton(message, button),
         onDismiss: () => this.dismiss(message, true),
         onAutoDismiss: () => this.dismiss(message, false),
+        onBridge: (action) => this.handleBridge(message, action),
       });
     } catch (err) {
       this.host.logger.error('in-app mesajı çizilemedi', err);
@@ -403,6 +411,47 @@ export class InAppManager {
         else this.host.logger.warn('in-app: adı olmayan outcome aksiyonu yok sayıldı');
         break;
       case 'dismiss':
+        break;
+    }
+  }
+
+  /**
+   * HTML in-app köprü eylemi (ADR-0027; doğrulanmış): `click` tıklama olayı (`button_id` = eylem kimliği) +
+   * dinleyiciler, mesaj kapanır ve URL güvenliyse açılır; `add_tag` ve `track_event` mesajı kapatmaz.
+   */
+  private handleBridge(message: InAppMessage, action: InAppBridgeAction): void {
+    if (this.showing?.message.id !== message.id) return;
+    switch (action.type) {
+      case 'click': {
+        this.track(message, 'click', action.actionId);
+        this.markInteracted(message);
+        const click: InAppClickEvent = {
+          message: { id: message.id },
+          result: { actionId: action.actionId, ...(action.url ? { url: action.url } : {}) },
+        };
+        for (const listener of this.clickListeners) {
+          try {
+            listener(click);
+          } catch (err) {
+            this.host.logger.error('in-app tıklama dinleyicisi hata verdi', err);
+          }
+        }
+        this.closeCurrent();
+        if (action.url) {
+          const http = safeHttpUrl(action.url);
+          const deeplink = http ? null : safeDeeplink(action.url);
+          if (http) (this.host.openUrl ?? openInNewTab)(http);
+          else if (deeplink) (this.host.navigate ?? navigateTo)(deeplink);
+          else this.host.logger.warn('in-app: köprüden gelen güvensiz URL yok sayıldı');
+        }
+        break;
+      }
+      case 'add_tag':
+        this.host.addTags({ [action.key]: action.value });
+        break;
+      case 'track_event':
+        if (this.host.sendEvent) this.host.sendEvent(action.name, action.props);
+        else this.host.sendOutcome(action.name);
         break;
     }
   }
@@ -480,16 +529,20 @@ export class InAppManager {
   }
 }
 
-/** Sunucu yanıtında çizilebilir yapı (ileriye dönük uyumluluk: bilinmeyen düzen atlanır). */
+/** Sunucu yanıtında çizilebilir yapı (ileriye dönük uyumluluk: bilinmeyen düzen/içerik türü atlanır). */
 function isRenderable(message: InAppMessage): boolean {
-  return (
-    !!message &&
-    typeof message.id === 'string' &&
-    (Array.isArray(message.triggers) || Array.isArray(message.trigger_groups)) &&
-    !!message.display &&
-    Array.isArray(message.display.blocks) &&
-    ['modal', 'banner_top', 'banner_bottom', 'fullscreen'].includes(message.display.layout)
-  );
+  if (
+    !message ||
+    typeof message.id !== 'string' ||
+    !(Array.isArray(message.triggers) || Array.isArray(message.trigger_groups)) ||
+    !message.display ||
+    !Array.isArray(message.display.blocks) ||
+    !['modal', 'banner_top', 'banner_bottom', 'fullscreen'].includes(message.display.layout)
+  )
+    return false;
+  const type = message.display.content_type ?? 'blocks';
+  if (type === 'html') return typeof message.display.html === 'string' && message.display.html.length > 0;
+  return type === 'blocks';
 }
 
 function openInNewTab(url: string): void {

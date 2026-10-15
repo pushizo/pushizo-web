@@ -21,6 +21,15 @@ import HeroSignal from '@herosignal/web';
 await HeroSignal.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
 ```
 
+CommonJS (eski paketleyiciler, Jest): paket `require` koşulunda `dist/cjs/index.cjs` ve CommonJS tür tanımlarını sunar.
+
+```js
+const { HeroSignal } = require('@herosignal/web'); // veya require('@herosignal/web').default
+```
+
+Paket boyutu bütçesi `size-budget.json`'dadır (gzip); `npm run size -w @herosignal/web` derlenmiş çıktıyı denetler ve CI
+aşımda başarısız olur.
+
 Site kökünde `HeroSignalSDKWorker.js` bulunmalıdır (içeriği API'deki worker'ı `importScripts` ile yükler).
 
 ## API yüzeyi

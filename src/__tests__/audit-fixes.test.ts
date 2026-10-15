@@ -289,6 +289,8 @@ describe('olaylar: kimlik bekleme (B-16) ve sahiplik kanıtı (D-1)', () => {
       properties: { sku: 'x' },
       value: 9,
       occurred_at: expect.any(String) as unknown,
+      // İstemci olay kimliği (yeniden denemede tekilleştirme)
+      event_id: expect.stringMatching(/^[0-9a-f-]{32,36}$/) as unknown,
       subscription_id: 'sub_push',
       token_hash: tokenHash,
       identity_hash: identityHash,
