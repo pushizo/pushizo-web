@@ -173,6 +173,9 @@ export function deleteSubscription(
  * Cihaz için gösterilebilir in-app mesajlar. `tokenHash` aboneliğin sahiplik kanıtıdır (ADR-0016); kanıtla
  * kaydolan abonelikler ve e-posta/SMS abonelikleri için sunucu kanıtsız isteği reddeder.
  */
+/** Sunucuya bildirilen in-app içerik yetenekleri. */
+export const IN_APP_SUPPORTS = 'html,carousel';
+
 export function fetchInAppMessages(
   api: SdkApi,
   subscriptionId: string,
@@ -180,7 +183,8 @@ export function fetchInAppMessages(
 ): Promise<SdkInAppList> {
   return api.request<SdkInAppList>(
     'GET',
-    `/in-app${queryString({ subscription_id: subscriptionId, ...ownershipProof(tokenHash) })}`,
+    // `supports`: bu SDK HTML in-app (sandbox'lı iframe) ve carousel bloklarını çizebilir (ADR-0027).
+    `/in-app${queryString({ subscription_id: subscriptionId, ...ownershipProof(tokenHash), supports: IN_APP_SUPPORTS })}`,
   );
 }
 

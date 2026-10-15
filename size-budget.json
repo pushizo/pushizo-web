@@ -1,0 +1,9 @@
+{
+  "$comment": "Web SDK paket boyutu bütçesi (gzip -9, bayt). `npm run size -w @herosignal/web` derlenmiş dist üzerinde denetler; CI (sdk.yml) aşımda başarısız olur. Bütçe artışı PR açıklamasında gerekçelendirilir.",
+  "files": {
+    "dist/HeroSignalSDK.js": 40960,
+    "dist/HeroSignalSDKWorker.js": 6144,
+    "dist/index.js": 61440,
+    "dist/cjs/index.cjs": 61440
+  }
+}

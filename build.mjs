@@ -1,6 +1,6 @@
-// Web SDK paketleme: ESM kütüphane, IIFE (CDN/script etiketi) ve service worker bundle'ı.
+// Web SDK paketleme: ESM ve CommonJS kütüphane, IIFE (CDN/script etiketi) ve service worker bundle'ı.
 import { build, context } from 'esbuild';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 const watch = process.argv.includes('--watch');
@@ -12,6 +12,18 @@ const targets = [
     entryPoints: ['src/index.ts'],
     outfile: 'dist/index.js',
     format: 'esm',
+    bundle: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
+    // CommonJS tüketiciler (`require('@herosignal/web')`, eski paketleyiciler, Jest). `dist/cjs/package.json`
+    // `type: commonjs` olduğundan aynı dizindeki `.d.ts` dosyaları da CommonJS olarak çözülür.
+    entryPoints: ['src/index.ts'],
+    outfile: 'dist/cjs/index.cjs',
+    format: 'cjs',
     bundle: true,
     platform: 'browser',
     target: ['es2020'],
@@ -50,5 +62,7 @@ if (watch) {
   console.log('[sdk-web] izleniyor…');
 } else {
   for (const t of targets) await build(t);
+  mkdirSync('dist/cjs', { recursive: true });
+  writeFileSync('dist/cjs/package.json', JSON.stringify({ type: 'commonjs' }, null, 2) + '\n');
   console.log('[sdk-web] dist hazır');
 }

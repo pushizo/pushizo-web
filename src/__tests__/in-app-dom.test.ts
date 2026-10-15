@@ -493,6 +493,8 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(api.find('GET', '/in-app')[0]!.query).toEqual({
       subscription_id: 'sub_push',
       token_hash: pushHash,
+      // ADR-0027: HTML in-app ve carousel yetenekleri bildirilir.
+      supports: 'html,carousel',
     });
 
     await hs.Inbox.list();
@@ -555,6 +557,8 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(api.find('GET', '/in-app')[0]!.query).toEqual({
       subscription_id: 'sub_mail',
       token_hash: mailHash,
+      // ADR-0027: HTML in-app ve carousel yetenekleri bildirilir.
+      supports: 'html,carousel',
     });
     await vi.waitFor(() =>
       expect(api.find('POST', '/in-app/iam_welcome/events')[0]?.body).toEqual({
