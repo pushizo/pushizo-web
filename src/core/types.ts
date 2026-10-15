@@ -226,6 +226,8 @@ export interface PersistedState {
   externalId: string | null;
   /** Kimlik doğrulama (identity verification) hash'i; login ile verilir, logout ile silinir. */
   identityHash: string | null;
+  /** Kimlik JWT'si (ES256; ADR-0023 §9); login veya updateUserJwt ile verilir, logout ile silinir. */
+  identityJwt: string | null;
   tags: Record<string, string>;
   optedIn: boolean;
   consentGiven: boolean;

@@ -11,6 +11,7 @@ export const DEFAULT_STATE: PersistedState = {
   userId: null,
   externalId: null,
   identityHash: null,
+  identityJwt: null,
   tags: {},
   optedIn: false,
   consentGiven: false,

@@ -145,6 +145,7 @@ export class HeroSignalSdk {
       baseUrl: apiUrl,
       appId: options.appId,
       logger: this.logger,
+      identityToken: () => this.store?.get().identityJwt ?? null,
       // Son savunma hattı: gizlilik onayı yokken hiçbir yoldan ağ isteği çıkmaz (KVKK/GDPR, plan 06 §6.1).
       fetch: (input, init) =>
         this.consentPending()
@@ -1034,12 +1035,25 @@ export class HeroSignalSdk {
 
   // --- Public API ---
 
-  async login(externalId: string, identityHash?: string): Promise<void> {
+  /**
+   * Kullanıcıyı kimliklendirir. Kimlik kanıtı app ayarına göre HMAC `identityHash` (eski imza: ikinci argüman dize)
+   * ve/veya sunucunuzda imzalanmış ES256 JWT'dir: `login(id, { jwt })`. JWT, SDK isteklerinde `Authorization` başlığıyla
+   * gider; süresi dolunca `updateUserJwt` ile yenilenir.
+   */
+  async login(externalId: string, proof?: string | { identityHash?: string; jwt?: string }): Promise<void> {
     this.assertReady();
-    const state = this.store!.get();
     if (!externalId) throw new Error('externalId gerekli');
-    if (this.config?.identity_verification_required && !identityHash)
-      throw new Error('Bu app için identityHash zorunlu.');
+    const identityHash = typeof proof === 'string' ? proof : proof?.identityHash;
+    const jwt = typeof proof === 'object' ? proof.jwt : undefined;
+    if (this.config?.identity_verification_required) {
+      const mode = this.config.identity_verification_mode ?? 'hmac';
+      if (mode === 'jwt' && !jwt) throw new Error('Bu app için kimlik JWT\'si (login(id, { jwt })) zorunlu.');
+      if (mode === 'hmac' && !identityHash) throw new Error('Bu app için identityHash zorunlu.');
+      if (mode === 'both' && !jwt && !identityHash) throw new Error('Bu app için identityHash veya JWT zorunlu.');
+    }
+    // JWT bu girişin isteğinde de başlıkta gitmelidir: istekten önce saklanır.
+    this.store!.update({ identityJwt: jwt ?? null });
+    const state = this.store!.get();
     // Cihaz aboneliğinin login'i anonim kullanıcıyı birleştirir/kimliklendirir; aynı anonim kullanıcıdaki
     // e-posta/SMS abonelikleri de onunla birlikte taşınır (ayrı istek gerekmez).
     let moved: { fromUserId: string; result: UserResult } | null = null;
@@ -1093,14 +1107,27 @@ export class HeroSignalSdk {
         userId: result.user_id,
         externalId: null,
         identityHash: null,
+        identityJwt: null,
         tags: {},
       });
     } else {
-      this.store!.update({ externalId: null, identityHash: null, userId: null, tags: {} });
+      this.store!.update({ externalId: null, identityHash: null, identityJwt: null, userId: null, tags: {} });
     }
     // E-posta/SMS abonelikleri kimlikli kullanıcıda kalır; bu cihazın yeni anonim kullanıcısıyla ilişkisi kesilir.
     if (state.externalId) this.store!.update({ contactSubscriptions: [] });
     this.syncIdentity();
+  }
+
+  /**
+   * Süresi dolan veya yenilenen kimlik JWT'sini günceller (giriş yapmış kullanıcı için). Sonraki SDK istekleri yeni
+   * belirteci taşır; kuyrukta bekleyen işlemler yeniden denenir.
+   */
+  async updateUserJwt(jwt: string): Promise<void> {
+    this.assertReady();
+    if (!jwt) throw new Error('jwt gerekli');
+    if (!this.store!.get().externalId) throw new Error('Önce login ile kullanıcı kimliklendirilmeli.');
+    this.store!.update({ identityJwt: jwt });
+    await this.queue!.flush();
   }
 
   readonly User = {
