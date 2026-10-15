@@ -19,6 +19,8 @@ export interface ApiOptions {
   /** Testler için: geri çekilme beklemelerini kısaltır. */
   sleep?: (ms: number) => Promise<void>;
   maxRetries?: number;
+  /** Geçerli kimlik JWT'si (identity verification `jwt`/`both`); her istekte okunur. */
+  identityToken?: () => string | null;
 }
 
 export class ApiError extends Error {
@@ -55,6 +57,18 @@ export class SdkApi {
     this.maxRetries = options.maxRetries ?? BACKOFF_MS.length;
   }
 
+  /**
+   * İstek başlıkları. Kimlik JWT'si (ADR-0023 §9) varsa `Authorization: Bearer` ile gider; çerez kullanılmaz
+   * (`credentials: 'omit'`), belirteç URL'ye veya gövdeye yazılmaz.
+   */
+  private headers(json: boolean): Record<string, string> {
+    const headers: Record<string, string> = { accept: 'application/json' };
+    if (json) headers['content-type'] = 'application/json';
+    const jwt = this.options.identityToken?.();
+    if (jwt) headers.authorization = `Bearer ${jwt}`;
+    return headers;
+  }
+
   get appBase(): string {
     return `${this.options.baseUrl.replace(/\/$/, '')}/sdk/v1/apps/${encodeURIComponent(this.options.appId)}`;
   }
@@ -65,7 +79,7 @@ export class SdkApi {
       try {
         const response = await this.fetchImpl(`${this.appBase}${path}`, {
           method,
-          headers: body === undefined ? { accept: 'application/json' } : { 'content-type': 'application/json', accept: 'application/json' },
+          headers: this.headers(body !== undefined),
           body: body === undefined ? undefined : JSON.stringify(body),
           // Çerez göndermeyiz; SDK app_id ile konuşur.
           credentials: 'omit',
@@ -350,6 +364,8 @@ export interface SdkConfig {
   app_id: string;
   name: string;
   identity_verification_required: boolean;
+  /** Kabul edilen kimlik kanıtı (eski API'lerde yoksa `hmac`). */
+  identity_verification_mode?: 'hmac' | 'jwt' | 'both';
   platforms: { ios: boolean; android: boolean; web: boolean; email: boolean; sms: boolean };
   web: {
     vapid_public_key: string | null;
