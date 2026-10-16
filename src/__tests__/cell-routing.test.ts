@@ -166,9 +166,9 @@ describe('Web SDK bölgesel API kökü', () => {
   it('global varsayılan kök (Flutter web/köprüler) açık seçim sayılmaz; config api_url benimsenir', async () => {
     const calls = fakeApi((url) => (url.pathname.endsWith('/config') ? json(200, config('https://api.eu.test')) : undefined));
     const hs = createSdk();
-    await hs.init({ appId: 'app_1', apiUrl: 'https://api.herosignal.dev/', logLevel: 'silent' });
-    expect(calls[0]).toBe('GET https://api.herosignal.dev/sdk/v1/apps/app_1/config');
-    expect(stored()).toMatchObject({ regionalApiUrl: 'https://api.eu.test', regionalApiSeed: 'https://api.herosignal.dev' });
+    await hs.init({ appId: 'app_1', apiUrl: 'https://api.pushizo.com/', logLevel: 'silent' });
+    expect(calls[0]).toBe('GET https://api.pushizo.com/sdk/v1/apps/app_1/config');
+    expect(stored()).toMatchObject({ regionalApiUrl: 'https://api.eu.test', regionalApiSeed: 'https://api.pushizo.com' });
     hs.destroy();
   });
 

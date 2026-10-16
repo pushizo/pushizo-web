@@ -8,8 +8,8 @@ import { deliveryIdOf, isJsonObjectText, parsePushPayload, pickClickTarget, reso
 declare const self: ServiceWorkerGlobalScope;
 
 /**
- * HeroSignal service worker. Müşteri siteye `HeroSignalSDKWorker.js` olarak yerleştirir veya mevcut
- * SW içinde `importScripts('https://api.example/sdk-web/HeroSignalSDKWorker.js')` ile ekler.
+ * Pushizo service worker. Müşteri siteye `PushizoSDKWorker.js` olarak yerleştirir veya mevcut
+ * SW içinde `importScripts('https://api.example/sdk-web/PushizoSDKWorker.js')` ile ekler.
  * API kökü ve app_id, SW kaydı sırasında sorgu parametresi ile verilir (`?appId=…&apiUrl=…`).
  */
 const params = new URL(self.location.href).searchParams;

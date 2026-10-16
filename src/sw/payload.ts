@@ -75,7 +75,7 @@ export function parsePushPayload(raw: string | null | undefined): WebPushPayload
 
 /** `showNotification` seçenekleri; `data` içinde tıklama anında gereken her şey taşınır. */
 export function toNotificationOptions(payload: WebPushPayload, defaultIcon?: string): { title: string; options: NotificationOptions & { actions?: { action: string; title: string; icon?: string }[] } } {
-  const title = payload.title || payload.body || 'HeroSignal';
+  const title = payload.title || payload.body || 'Pushizo';
   return {
     title,
     options: {

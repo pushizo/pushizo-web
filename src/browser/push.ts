@@ -140,7 +140,7 @@ function sameKey(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
- * Push aboneliği JSON'u → HeroSignal token metni (sunucu `{endpoint, keys}` bekler).
+ * Push aboneliği JSON'u → Pushizo token metni (sunucu `{endpoint, keys}` bekler).
  * Endpoint veya şifreleme anahtarları eksikse (gerçek abonelik değil) null döner; boş/sahte token gönderilmez.
  */
 export function subscriptionToToken(json: PushSubscriptionJSON | null | undefined): string | null {

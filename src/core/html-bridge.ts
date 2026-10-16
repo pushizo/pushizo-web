@@ -1,5 +1,5 @@
 /**
- * HTML in-app mesajı sandbox'ı ve `HeroSignalBridge` köprü protokolü (ADR-0027). Web SDK bağımsız paket olduğundan
+ * HTML in-app mesajı sandbox'ı ve `PushizoBridge` köprü protokolü (ADR-0027). Web SDK bağımsız paket olduğundan
  * bu dosya `packages/shared/src/html-in-app.ts` ile aynı mantığın kopyasıdır (dashboard önizlemesi aynı belgeyi
  * kullanır); iki kopyanın aynı çıktıyı ürettiği `packages/shared/src/__tests__/html-in-app.test.ts` ile doğrulanır.
  *
@@ -15,7 +15,7 @@ export const HTML_IN_APP_CSP =
   "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'";
 
 /** Köprü mesajlarının işareti ve sürümü. */
-export const HTML_BRIDGE_MARK = 'herosignal-bridge';
+export const HTML_BRIDGE_MARK = 'pushizo-bridge';
 export const HTML_BRIDGE_VERSION = 1;
 
 /** HTML in-app içeriği üst sınırı (karakter). */
@@ -107,7 +107,7 @@ function cleanNonce(nonce: string): string {
 }
 
 /**
- * iframe içinde çalışan köprü betiği. `HeroSignalBridge` değiştirilemez nesnedir; bağlantı tıklamaları iframe'i
+ * iframe içinde çalışan köprü betiği. `PushizoBridge` değiştirilemez nesnedir; bağlantı tıklamaları iframe'i
  * gezdirmek yerine `click('link', href)` olur; `data-hs-close` öğeleri kapatır, `data-hs-action="kimlik"` öğeleri
  * tıklama bildirir. Yükseklik değişimleri (banner/modal için) `resize` ile bildirilir.
  */
@@ -129,7 +129,7 @@ export function htmlBridgeScript(nonce: string): string {
     'addTag:function(k,v){s({type:"add_tag",key:t(k,128),value:String(v==null?"":v).slice(0,255)})},' +
     'trackEvent:function(n,p){var o={};try{o=JSON.parse(JSON.stringify(p||{}))}catch(e){}s({type:"track_event",name:t(n,100),props:o})}' +
     '});' +
-    'try{Object.defineProperty(window,"HeroSignalBridge",{value:B,writable:false,configurable:false})}catch(e){}' +
+    'try{Object.defineProperty(window,"PushizoBridge",{value:B,writable:false,configurable:false})}catch(e){}' +
     'document.addEventListener("click",function(e){var el=e.target;if(!el||!el.closest)return;' +
     'var c=el.closest("[data-hs-close]");if(c){e.preventDefault();B.close();return}' +
     'var a=el.closest("[data-hs-action]");var l=el.closest("a[href]");' +

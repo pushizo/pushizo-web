@@ -85,8 +85,8 @@ const SDK_VERSION = typeof __HS_SDK_VERSION__ === 'string' ? __HS_SDK_VERSION__ 
 
 type Listener<T> = (event: T) => void;
 
-/** HeroSignal Web SDK ana sınıfı (eski sağlayıcı v5 yüzeyiyle uyumlu). */
-export class HeroSignalSdk {
+/** Pushizo Web SDK ana sınıfı (eski sağlayıcı v5 yüzeyiyle uyumlu). */
+export class PushizoSdk {
   readonly version = SDK_VERSION;
   private readonly logger = new Logger();
   private options: InitOptions | null = null;
@@ -144,7 +144,7 @@ export class HeroSignalSdk {
   }
 
   private async doInit(options: InitOptions): Promise<void> {
-    if (!options.appId) throw new Error('HeroSignal.init: appId gerekli.');
+    if (!options.appId) throw new Error('Pushizo.init: appId gerekli.');
     this.options = options;
     if (options.logLevel) this.logger.setLevel(options.logLevel);
     this.language =
@@ -211,7 +211,7 @@ export class HeroSignalSdk {
 
   /** KVKK/GDPR onayı: verilince SDK başlar ve onay öncesi kuyruğa alınan işlemler gönderilir. */
   async setConsentGiven(given: boolean): Promise<void> {
-    if (!this.store) throw new Error('HeroSignal.init önce çağrılmalı.');
+    if (!this.store) throw new Error('Pushizo.init önce çağrılmalı.');
     this.store.update({ consentGiven: given });
     this.errors?.setEnabled(given);
     if (given) {
@@ -250,7 +250,7 @@ export class HeroSignalSdk {
         serviceWorkerPath:
           options.serviceWorkerPath ??
           this.config?.web.service_worker_path ??
-          '/HeroSignalSDKWorker.js',
+          '/PushizoSDKWorker.js',
         serviceWorkerScope:
           options.serviceWorkerScope ?? this.config?.web.service_worker_scope ?? undefined,
         clickMatch: options.notificationClickHandlerMatch ?? this.config?.web.click_behavior?.match,
@@ -1440,7 +1440,7 @@ export class HeroSignalSdk {
   readonly Location = {
     /** Paylaşımı açar/kapatır (kalıcı). Açılırken izin varsa konum hemen gönderilir; izin için `requestPermission`. */
     setShared: (shared: boolean): void => {
-      if (!this.store) throw new Error('HeroSignal.init önce çağrılmalı.');
+      if (!this.store) throw new Error('Pushizo.init önce çağrılmalı.');
       const wasShared = this.store.get().locationShared;
       const enabled = shared === true;
       this.store.update({ locationShared: enabled, ...(enabled ? {} : { locationSentAt: null }) });
@@ -1461,7 +1461,7 @@ export class HeroSignalSdk {
      * Paylaşım açıksa alınan konum hemen gönderilir.
      */
     requestPermission: async (rationale?: string): Promise<boolean> => {
-      if (!this.store) throw new Error('HeroSignal.init önce çağrılmalı.');
+      if (!this.store) throw new Error('Pushizo.init önce çağrılmalı.');
       if (!isGeolocationSupported()) return false;
       const permission = await geolocationPermission();
       if (permission === 'denied') {
@@ -1486,7 +1486,7 @@ export class HeroSignalSdk {
     },
   };
 
-  /** Özel bağlantı istemi: sonradan eklenen `.herosignal-customlink-container` öğeleri için yeniden çizer. */
+  /** Özel bağlantı istemi: sonradan eklenen `.pushizo-customlink-container` öğeleri için yeniden çizer. */
   readonly CustomLink = {
     render: (): void => this.renderCustomLinks(),
   };
@@ -1591,7 +1591,7 @@ export class HeroSignalSdk {
 
   private assertReady(): void {
     if (!this.api || !this.store || !this.queue)
-      throw new Error('HeroSignal.init önce çağrılmalı.');
+      throw new Error('Pushizo.init önce çağrılmalı.');
     if (this.options?.requiresPrivacyConsent && !this.store.get().consentGiven)
       throw new Error('Gizlilik onayı verilmedi (setConsentGiven).');
   }
@@ -1607,9 +1607,9 @@ export class HeroSignalSdk {
 }
 
 // `User`/`Notifications` nesnelerindeki getter'lar sınıf örneğine erişebilsin diye tek örnek referansı.
-let sdkRef: HeroSignalSdk;
-export function createSdk(): HeroSignalSdk {
-  sdkRef = new HeroSignalSdk();
+let sdkRef: PushizoSdk;
+export function createSdk(): PushizoSdk {
+  sdkRef = new PushizoSdk();
   return sdkRef;
 }
 
@@ -1617,7 +1617,7 @@ function inferApiUrl(): string {
   if (typeof document !== 'undefined') {
     const script = document.currentScript as HTMLScriptElement | null;
     const src =
-      script?.src ?? Array.from(document.scripts).find((s) => s.src.includes('HeroSignalSDK'))?.src;
+      script?.src ?? Array.from(document.scripts).find((s) => s.src.includes('PushizoSDK'))?.src;
     if (src) {
       const u = new URL(src);
       return u.origin;

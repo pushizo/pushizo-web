@@ -388,7 +388,7 @@ export interface SdkInboxPage {
   has_more: boolean;
 }
 
-/** HeroSignal public app yapılandırması (GET /config). */
+/** Pushizo public app yapılandırması (GET /config). */
 export interface SdkConfig {
   app_id: string;
   name: string;

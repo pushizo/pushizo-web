@@ -2,7 +2,7 @@ import type { CustomLinkOptions } from '../core/types.js';
 import { safeAccentColor } from './prompts.js';
 
 /** Özel bağlantı isteminin yerleştirileceği öğelerin sınıfı (eski sağlayıcı ile aynı adlandırma düzeni). */
-export const CUSTOM_LINK_SELECTOR = '.herosignal-customlink-container';
+export const CUSTOM_LINK_SELECTOR = '.pushizo-customlink-container';
 
 const TEXTS = {
   tr: {
@@ -37,7 +37,7 @@ function ensureStyle(): void {
 }
 
 /**
- * Sayfadaki `.herosignal-customlink-container` öğelerine abone ol / çık bağlantısını çizer.
+ * Sayfadaki `.pushizo-customlink-container` öğelerine abone ol / çık bağlantısını çizer.
  * Abone olunmuşsa ve `unsubscribeEnabled` kapalıysa kapsayıcı boş bırakılır. Metinler `textContent` ile yazılır
  * (HTML enjeksiyonu yok); renkler yalnızca `#rrggbb` biçiminde kabul edilir.
  * @returns Çizilen kapsayıcı sayısı.
