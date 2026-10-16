@@ -9,7 +9,7 @@ export const WRONG_CELL_CODE = 'HS_WRONG_CELL';
  * Global API kökü (mobil SDK'ların ve köprülerin varsayılanı). `init` `apiUrl` bu değerdeyse açık seçim sayılmaz ve
  * config `api_url` benimsenir; böylece Flutter web gibi varsayılanı her zaman ileten köprüler de bölgesel köke geçer.
  */
-export const DEFAULT_API_URL = 'https://api.herosignal.dev';
+export const DEFAULT_API_URL = 'https://api.pushizo.com';
 
 /** `init` `apiUrl` geliştiricinin açık (özel alan adı/vekil) seçimi mi? */
 export function isExplicitApiUrl(apiUrl: string | undefined): boolean {

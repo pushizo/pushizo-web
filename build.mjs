@@ -19,7 +19,7 @@ const targets = [
     define,
   },
   {
-    // CommonJS tüketiciler (`require('@herosignal/web')`, eski paketleyiciler, Jest). `dist/cjs/package.json`
+    // CommonJS tüketiciler (`require('@pushizo/web')`, eski paketleyiciler, Jest). `dist/cjs/package.json`
     // `type: commonjs` olduğundan aynı dizindeki `.d.ts` dosyaları da CommonJS olarak çözülür.
     entryPoints: ['src/index.ts'],
     outfile: 'dist/cjs/index.cjs',
@@ -32,7 +32,7 @@ const targets = [
   },
   {
     entryPoints: ['src/entry-iife.ts'],
-    outfile: 'dist/HeroSignalSDK.js',
+    outfile: 'dist/PushizoSDK.js',
     format: 'iife',
     bundle: true,
     minify: true,
@@ -43,7 +43,7 @@ const targets = [
   },
   {
     entryPoints: ['src/sw/worker.ts'],
-    outfile: 'dist/HeroSignalSDKWorker.js',
+    outfile: 'dist/PushizoSDKWorker.js',
     format: 'iife',
     bundle: true,
     minify: true,

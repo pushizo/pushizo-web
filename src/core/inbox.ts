@@ -36,7 +36,7 @@ export function toInboxItem(item: SdkInboxItem): InboxItem {
 }
 
 /**
- * Bildirim kutusu (`HeroSignal.Inbox`): liste, okundu işaretleme, arşivleme ve okunmamış sayısı.
+ * Bildirim kutusu (`Pushizo.Inbox`): liste, okundu işaretleme, arşivleme ve okunmamış sayısı.
  * İstekler doğrudan gönderilir (yanıt gerekir); okunmamış sayısı değişince gözlemciler bilgilendirilir.
  */
 export class InboxClient {
@@ -49,11 +49,11 @@ export class InboxClient {
 
   private context(): { api: SdkApi; auth: InboxAuth } {
     const api = this.host.api();
-    if (!api) throw new Error('HeroSignal.init önce çağrılmalı.');
+    if (!api) throw new Error('Pushizo.init önce çağrılmalı.');
     const auth = this.host.auth();
     if (!auth)
       throw new Error(
-        'HeroSignal.Inbox: kullanıcı veya abonelik yok. Önce bildirim aboneliği oluşturun, login olun ya da User.addEmail/addSms kullanın.',
+        'Pushizo.Inbox: kullanıcı veya abonelik yok. Önce bildirim aboneliği oluşturun, login olun ya da User.addEmail/addSms kullanın.',
       );
     return { api, auth };
   }

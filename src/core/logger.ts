@@ -7,7 +7,7 @@ const ORDER: Record<LogLevel, number> = { silent: 0, error: 1, warn: 2, info: 3,
 export class Logger {
   constructor(
     private level: LogLevel = 'warn',
-    private readonly prefix = '[HeroSignal]',
+    private readonly prefix = '[Pushizo]',
   ) {}
 
   setLevel(level: LogLevel): void {

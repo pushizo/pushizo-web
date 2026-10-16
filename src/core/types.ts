@@ -127,7 +127,7 @@ export interface WelcomeNotificationOptions {
   url?: string;
 }
 
-/** `.herosignal-customlink-container` öğelerine çizilen abone ol / çık bağlantısı (eski sağlayıcı custom link). */
+/** `.pushizo-customlink-container` öğelerine çizilen abone ol / çık bağlantısı (eski sağlayıcı custom link). */
 export interface CustomLinkOptions {
   enabled?: boolean;
   /** Düğme veya metin bağlantısı (varsayılan `button`). */
@@ -152,13 +152,13 @@ export interface PromptOptions {
 export interface InitOptions {
   appId: string;
   /**
-   * API kökü, örn. https://api.herosignal.dev (varsayılan: SDK'nın yüklendiği origin). Verilmezse veya global kök
-   * (`https://api.herosignal.dev`) verilirse SDK app yapılandırmasındaki bölgesel adresi (`api_url`) öğrenip kullanır;
+   * API kökü, örn. https://api.pushizo.com (varsayılan: SDK'nın yüklendiği origin). Verilmezse veya global kök
+   * (`https://api.pushizo.com`) verilirse SDK app yapılandırmasındaki bölgesel adresi (`api_url`) öğrenip kullanır;
    * özel bir adres verilirse korunur (yalnızca sunucu 421 `HS_WRONG_CELL` ile başka bölgeyi gösterirse oraya
    * geçilir). Ayrıntı: docs/sdk/web.md.
    */
   apiUrl?: string;
-  /** Service worker yolu (site origin'inde), varsayılan `/HeroSignalSDKWorker.js`. */
+  /** Service worker yolu (site origin'inde), varsayılan `/PushizoSDKWorker.js`. */
   serviceWorkerPath?: string;
   serviceWorkerScope?: string;
   /** HTTP localhost üzerinde çalışmaya izin ver (geliştirme). */
@@ -225,7 +225,7 @@ export interface ForegroundLifecycleEvent {
 
 /** `Notifications.addPermissionObserver` olayı. */
 export interface PermissionChangeEvent {
-  /** Bildirim izni verildi mi (diğer HeroSignal SDK'larıyla aynı alan). */
+  /** Bildirim izni verildi mi (diğer Pushizo SDK'larıyla aynı alan). */
   permission: boolean;
   /** Ayrıntılı tarayıcı izin durumu. */
   state: PermissionState;

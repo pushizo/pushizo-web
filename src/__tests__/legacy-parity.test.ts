@@ -106,7 +106,7 @@ describe('karşılama bildirimi', () => {
 
 describe('özel bağlantı istemi', () => {
   beforeEach(() => {
-    document.body.innerHTML = '<div class="herosignal-customlink-container"></div><div class="herosignal-customlink-container"></div>';
+    document.body.innerHTML = '<div class="pushizo-customlink-container"></div><div class="pushizo-customlink-container"></div>';
   });
 
   it('abone değilken açıklama ve abone ol düğmesi çizilir; tıklama işleyiciyi çağırır', async () => {
@@ -118,7 +118,7 @@ describe('özel bağlantı istemi', () => {
       onClick,
     );
     expect(count).toBe(2);
-    const container = document.querySelector('.herosignal-customlink-container')!;
+    const container = document.querySelector('.pushizo-customlink-container')!;
     expect(container.querySelector('p')!.textContent).toBe('<b>x</b>');
     expect(container.querySelector('b')).toBeNull();
     const button = container.querySelector('button')!;
@@ -132,9 +132,9 @@ describe('özel bağlantı istemi', () => {
 
   it('aboneyken unsubscribeEnabled kapalıysa gizlenir, açıksa çık düğmesi', () => {
     renderCustomLinks({ enabled: true }, 'en', true, async () => undefined);
-    expect(document.querySelector('.herosignal-customlink-container button')).toBeNull();
+    expect(document.querySelector('.pushizo-customlink-container button')).toBeNull();
     renderCustomLinks({ enabled: true, unsubscribeEnabled: true, text: { unsubscribe: 'Stop' } }, 'en', true, async () => undefined);
-    const button = document.querySelector<HTMLButtonElement>('.herosignal-customlink-container button')!;
+    const button = document.querySelector<HTMLButtonElement>('.pushizo-customlink-container button')!;
     expect(button.textContent).toBe('Stop');
     expect(button.className).toBe('hs-cl-button hs-cl-medium');
   });

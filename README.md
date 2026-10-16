@@ -1,36 +1,36 @@
-# @herosignal/web
+# @pushizo/web
 
-HeroSignal Web SDK: Web Push izni ve aboneliği, e-posta/SMS aboneliği, kullanıcı/tag/alias yönetimi, olaylar, in-app mesajlar, bildirim kutusu, kullanıcı tercihleri ve service worker. eski sağlayıcı v5 yüzeyiyle uyumludur.
+Pushizo Web SDK: Web Push izni ve aboneliği, e-posta/SMS aboneliği, kullanıcı/tag/alias yönetimi, olaylar, in-app mesajlar, bildirim kutusu, kullanıcı tercihleri ve service worker. eski sağlayıcı v5 yüzeyiyle uyumludur.
 
 Ayrıntılı kullanım kılavuzu: [`docs/sdk/web.md`](../../docs/sdk/web.md). Örnekler: `examples/web-vanilla`, `examples/web-nextjs`.
 
 ## Kurulum
 
 ```html
-<script src="https://api.example.com/sdk-web/HeroSignalSDK.js" async></script>
+<script src="https://api.example.com/sdk-web/PushizoSDK.js" async></script>
 <script>
-  window.HeroSignalDeferred = window.HeroSignalDeferred || [];
-  HeroSignalDeferred.push(async (HeroSignal) => {
-    await HeroSignal.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
+  window.PushizoDeferred = window.PushizoDeferred || [];
+  PushizoDeferred.push(async (Pushizo) => {
+    await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
   });
 </script>
 ```
 
 ```ts
-import HeroSignal from '@herosignal/web';
-await HeroSignal.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
+import Pushizo from '@pushizo/web';
+await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
 ```
 
 CommonJS (eski paketleyiciler, Jest): paket `require` koşulunda `dist/cjs/index.cjs` ve CommonJS tür tanımlarını sunar.
 
 ```js
-const { HeroSignal } = require('@herosignal/web'); // veya require('@herosignal/web').default
+const { Pushizo } = require('@pushizo/web'); // veya require('@pushizo/web').default
 ```
 
-Paket boyutu bütçesi `size-budget.json`'dadır (gzip); `npm run size -w @herosignal/web` derlenmiş çıktıyı denetler ve CI
+Paket boyutu bütçesi `size-budget.json`'dadır (gzip); `npm run size -w @pushizo/web` derlenmiş çıktıyı denetler ve CI
 aşımda başarısız olur.
 
-Site kökünde `HeroSignalSDKWorker.js` bulunmalıdır (içeriği API'deki worker'ı `importScripts` ile yükler).
+Site kökünde `PushizoSDKWorker.js` bulunmalıdır (içeriği API'deki worker'ı `importScripts` ile yükler).
 
 ## API yüzeyi
 
@@ -50,8 +50,8 @@ Site kökünde `HeroSignalSDKWorker.js` bulunmalıdır (içeriği API'deki worke
 
 ### Kullanıcı tercihleri
 ```ts
-const { preferences, categories } = await HeroSignal.User.getPreferences();
-HeroSignal.User.setPreferences([
+const { preferences, categories } = await Pushizo.User.getPreferences();
+Pushizo.User.setPreferences([
   { category: 'promo', optedIn: false },                 // tüm kanallar
   { category: 'news', optedIn: true, channel: 'email' }, // tek kanal
 ]);
@@ -60,8 +60,8 @@ HeroSignal.User.setPreferences([
 
 ### E-posta/SMS toplama istemi
 ```ts
-await HeroSignal.init({ appId: 'app_…', slidedown: { enabled: true, collect: 'email_sms' } });
-await HeroSignal.Slidedown.promptEmail();
+await Pushizo.init({ appId: 'app_…', slidedown: { enabled: true, collect: 'email_sms' } });
+await Pushizo.Slidedown.promptEmail();
 ```
 `collect: 'push' | 'email' | 'sms' | 'email_sms'` (init ya da dashboard istemi `prompt.collect`). E-posta/SMS için adres alanı + kabul düğmesi; doğrulama `addEmail`/`addSms` ile aynı. Kabulde adres kaydedilir ve istem bir daha gösterilmez; ret push istemiyle aynı geri çekilme takvimine uyar. `collect` yoksa push davranışı değişmez.
 
@@ -78,7 +78,7 @@ await HeroSignal.Slidedown.promptEmail();
 ## Geliştirme
 
 ```bash
-npm run -w sdk/web build       # dist/index.js (ESM), dist/HeroSignalSDK.js (IIFE), dist/HeroSignalSDKWorker.js
+npm run -w sdk/web build       # dist/index.js (ESM), dist/PushizoSDK.js (IIFE), dist/PushizoSDKWorker.js
 npm run -w sdk/web typecheck
 npx vitest run --project unit sdk/web
 ```

@@ -10,7 +10,7 @@ let failed = false;
 for (const [file, limit] of Object.entries(budget.files)) {
   const path = new URL(`./${file}`, import.meta.url);
   if (!existsSync(path)) {
-    console.error(`✘ ${file}: bulunamadı (önce \`npm run build -w @herosignal/web\`)`);
+    console.error(`✘ ${file}: bulunamadı (önce \`npm run build -w @pushizo/web\`)`);
     failed = true;
     continue;
   }

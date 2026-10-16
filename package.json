@@ -1,19 +1,19 @@
 {
-  "name": "@herosignal/web",
+  "name": "@pushizo/web",
   "version": "0.1.0",
-  "description": "HeroSignal Web SDK: izin istemi, Web Push aboneliği, kullanıcı/tag yönetimi, olaylar ve service worker",
+  "description": "Pushizo Web SDK: izin istemi, Web Push aboneliği, kullanıcı/tag yönetimi, olaylar ve service worker",
   "license": "MIT",
-  "homepage": "https://github.com/exec0de/herosignal/tree/main/sdk/web#readme",
+  "homepage": "https://github.com/exec0de/pushizo/tree/main/sdk/web#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/exec0de/herosignal.git",
+    "url": "git+https://github.com/exec0de/pushizo.git",
     "directory": "sdk/web"
   },
   "bugs": {
-    "url": "https://github.com/exec0de/herosignal/issues"
+    "url": "https://github.com/exec0de/pushizo/issues"
   },
   "keywords": [
-    "herosignal",
+    "pushizo",
     "push",
     "notifications",
     "web-push",
@@ -39,7 +39,7 @@
         "default": "./dist/cjs/index.cjs"
       }
     },
-    "./sw": "./dist/HeroSignalSDKWorker.js",
+    "./sw": "./dist/PushizoSDKWorker.js",
     "./package.json": "./package.json"
   },
   "files": [

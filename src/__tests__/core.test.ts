@@ -205,6 +205,6 @@ describe('push payload', () => {
 
   it('düz metin ve boş payload', () => {
     expect(parsePushPayload('merhaba')).toEqual({ title: '', body: 'merhaba' });
-    expect(toNotificationOptions(parsePushPayload(null)).title).toBe('HeroSignal');
+    expect(toNotificationOptions(parsePushPayload(null)).title).toBe('Pushizo');
   });
 });
