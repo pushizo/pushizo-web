@@ -291,6 +291,16 @@ describe('web kampanyası yöneticisi', () => {
     m.destroy();
   });
 
+  it('beklenmeyen liste yanıtı (data dizisi değil) hata fırlatmaz ve kampanya göstermez', async () => {
+    for (const bad of [{} as WebCampaignList, null as unknown as WebCampaignList, { data: 'x' } as unknown as WebCampaignList]) {
+      const { m } = manager(bad);
+      await expect(m.start()).resolves.toBeUndefined();
+      await expect(m.refresh()).resolves.toBeUndefined();
+      expect(document.querySelector('[data-hs-web-campaign]')).toBeNull();
+      m.destroy();
+    }
+  });
+
   it('URL koşulu sağlanmazsa gösterilmez; WebCampaigns.show koşulları atlar', async () => {
     const { m } = manager(list([campaign({ conditions: { url_rules: [{ op: 'starts_with', value: '/kampanya' }] } })]));
     await m.start();

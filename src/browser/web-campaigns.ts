@@ -156,12 +156,21 @@ export class WebCampaignManager {
   async refresh(): Promise<void> {
     const api = this.deps.api();
     if (!api) return;
+    let res: WebCampaignList | null;
     try {
-      this.list = await api.request<WebCampaignList>('GET', `/web-campaigns${queryString({ language: this.deps.language().split('-')[0], ...this.proof() })}`);
+      res = await api.request<WebCampaignList>('GET', `/web-campaigns${queryString({ language: this.deps.language().split('-')[0], ...this.proof() })}`);
     } catch (err) {
       this.deps.logger.warn('web kampanyaları alınamadı', err);
       return;
     }
+    // Beklenmeyen yanıt (eski sunucu, ara katman, boş gövde) müşteri sitesinde hata fırlatmaz; kampanya gösterilmez.
+    if (!res || !Array.isArray(res.data)) {
+      this.deps.logger.warn('web kampanyaları yanıtı beklenen biçimde değil');
+      this.list = null;
+      this.disarm();
+      return;
+    }
+    this.list = res;
     this.arm();
   }
 
@@ -173,7 +182,7 @@ export class WebCampaignManager {
   /** Uygun kampanyaların tetiklerini kurar (öncelik sırasıyla; ilk tetiklenen gösterilir). */
   private arm(): void {
     this.disarm();
-    if (!this.list || !this.visitor || !this.session) return;
+    if (!this.list || !Array.isArray(this.list.data) || !this.visitor || !this.session) return;
     const now = Date.now();
     const page = { path: window.location.pathname + window.location.search, href: window.location.href, utm: this.session.utm, visits: this.visitor.visits };
     const device = deviceKind(navigator.userAgent, window.innerWidth);
