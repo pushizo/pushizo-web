@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "description": "Pushizo Web SDK: izin istemi, Web Push aboneliği, kullanıcı/tag yönetimi, olaylar ve service worker",
   "license": "MIT",
-  "homepage": "https://github.com/exec0de/pushizo/tree/main/sdk/web#readme",
+  "homepage": "https://docs.pushizo.com/docs/sdk/web",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/exec0de/pushizo.git",
     "directory": "sdk/web"
   },
   "bugs": {
-    "url": "https://github.com/exec0de/pushizo/issues"
+    "email": "support@pushizo.com"
   },
   "keywords": [
     "pushizo",
