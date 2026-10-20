@@ -1579,14 +1579,19 @@ export class PushizoSdk {
   };
 
   readonly Session = {
-    sendEvent: (name: string, properties?: Record<string, unknown>, value?: number): void => {
+    /**
+     * `options.eventId`: tarayıcı pikseliyle (Meta `eventID`, TikTok `event_id`) aynı kimlik verilirse Conversions API
+     * sunucu olayı pikselle tekilleşir (ADR-0038). Geçersiz biçimde SDK kendi kimliğini üretir.
+     */
+    sendEvent: (name: string, properties?: Record<string, unknown>, value?: number, options?: { eventId?: string }): void => {
+      const given = options?.eventId;
       this.enqueue({
         type: 'event',
         name,
         properties,
         value,
         occurredAt: new Date().toISOString(),
-        eventId: newEventId(),
+        eventId: given && /^[A-Za-z0-9._:-]{8,64}$/.test(given) ? given : newEventId(),
         at: Date.now(),
       });
       // Olay adı in-app `event` tetiklerini değerlendirir.

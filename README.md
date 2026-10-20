@@ -40,7 +40,7 @@ Site kökünde `PushizoSDKWorker.js` bulunmalıdır (içeriği API'deki worker'�
 | `User` | `addTag(s)`, `removeTag(s)`, `getTags`, `setLanguage`, `setProperty`, `addAlias(es)`, `removeAlias`, `addEmail`, `removeEmail`, `addSms`, `removeSms`, `getPreferences()`, `setPreferences([...])`, `getCategories()`, `setAdsPersonalizationConsent(bool)`, `getConsents()`, `id`, `externalId`, `pushSubscription.{id, token, optedIn, state, optIn, optOut, addObserver}` |
 | `Notifications` | `permission`, `requestPermission`, `addClickListener`, `addForegroundLifecycleListener` |
 | `Slidedown` | `promptPush`, `promptEmail`, `promptSms`, `promptEmailAndSms` (hepsi `{ force? }`) |
-| `Session` | `sendEvent(name, properties?, value?)` |
+| `Session` | `sendEvent(name, properties?, value?, { eventId? })` — `eventId`: tarayıcı pikseliyle aynı kimlik (Conversions API tekilleştirmesi, docs/guides/conversions-api.md) |
 | `InAppMessages` | `addTrigger(s)`, `removeTrigger(s)`, `clearTriggers`, `getTriggers`, `setScreen`, `addClickListener`, `addLifecycleListener`, `paused` |
 | `Inbox` | `list`, `markRead`, `markAllRead`, `archive`, `unreadCount`, `addObserver` |
 | `CustomLink` | `render` |
