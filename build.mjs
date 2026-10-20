@@ -39,6 +39,41 @@ const targets = [
     platform: 'browser',
     target: ['es2020'],
     sourcemap: true,
+    // Web kampanyası çizimi (ADR-0039) CDN derlemesinde ayrı pakettir (`PushizoWebCampaigns.js`, tembel yükleme).
+    define: { ...define, __HS_LAZY_WC__: 'true' },
+  },
+  {
+    entryPoints: ['src/web-campaigns-entry.ts'],
+    outfile: 'dist/PushizoWebCampaigns.js',
+    format: 'iife',
+    bundle: true,
+    minify: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
+    // Canlı sohbet widget'ı (ADR-0040): ana SDK'dan ayrı, `Pushizo.Chat.show()` ile tembel yüklenir.
+    entryPoints: ['src/chat-widget/entry-iife.ts'],
+    outfile: 'dist/PushizoChatWidget.js',
+    format: 'iife',
+    bundle: true,
+    minify: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
+    // Paketleyiciler için widget (`@pushizo/web/chat-widget`; CSP'de harici betik istemeyenler).
+    entryPoints: ['src/chat-widget/index.ts'],
+    outfile: 'dist/chat-widget.js',
+    format: 'esm',
+    bundle: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
     define,
   },
   {

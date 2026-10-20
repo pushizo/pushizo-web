@@ -22,6 +22,7 @@ import { currentPosition, geolocationPermission, isGeolocationSupported } from '
 import { renderCustomLinks } from './browser/custom-link.js';
 import { welcomeNotification } from './browser/welcome.js';
 import { InAppManager } from './browser/in-app.js';
+import { WebCampaignManager } from './browser/web-campaigns.js';
 import { SessionTracker } from './browser/session.js';
 import {
   ApiError,
@@ -40,12 +41,14 @@ import {
   type SdkConfig,
   type UserResult,
 } from './core/api.js';
+import { captureTouch, pruneAttribution, resolveAttributionOptions, withinWindow } from './core/attribution.js';
 import { acceptApiUrl, isExplicitApiUrl } from './core/cell.js';
 import { normalizeContact } from './core/contact.js';
 import { ErrorReporter } from './core/errors.js';
 import { newEventId } from './core/event-id.js';
 import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
+import { ChatClient, loadChatWidget, type ChatEvents, type ChatWidgetHandle, type ChatWidgetOptions } from './core/chat.js';
 import { locationRefreshDue } from './core/location.js';
 import { Logger } from './core/logger.js';
 import { OfflineQueue } from './core/queue.js';
@@ -56,6 +59,7 @@ import { deliveryIdOf, messageIdOf, toNotificationOptions } from './sw/payload.j
 const EVENT_FLUSH_DELAY_MS = 1000;
 import { StateStore } from './core/storage.js';
 import type {
+  AttributionState,
   ContactChannel,
   DeviceInfo,
   ForegroundLifecycleEvent,
@@ -77,6 +81,8 @@ import type {
   PushSubscriptionState,
   QueuedOperation,
   UserPreferences,
+  ConsentState,
+  WebCampaignEvent,
   WebPushPayload,
   WorkerMessage,
 } from './core/types.js';
@@ -134,6 +140,33 @@ export class PushizoSdk {
     auth: () => this.inboxAuth(),
     logger: this.logger,
   });
+  /** Web kampanyaları (pop-up / banner / slide-in, form, anket; ADR-0039). */
+  private readonly webCampaigns = new WebCampaignManager({
+    api: () => this.api,
+    appId: () => this.options?.appId ?? null,
+    logger: this.logger,
+    language: () => this.language,
+    subscriptionId: () => this.primarySubscriptionId(),
+    ownershipHash: (subscriptionId) => this.ownershipHashOf(subscriptionId),
+    addTags: (tags) => this.User.addTags(tags),
+    requestPushPermission: () => this.Notifications.requestPermission(),
+    sendOutcome: (name, value) => this.Session.sendEvent(name, undefined, value),
+    rendererUrl: () => `${this.apiSeed}/sdk-web/PushizoWebCampaigns.js`,
+  });
+  /** Canlı sohbet (ADR-0040): istemci ana pakette, widget arayüzü ayrı pakette tembel yüklenir. */
+  private readonly chat = new ChatClient({
+    api: () => this.api,
+    appId: () => this.options?.appId ?? null,
+    storage: () => (typeof localStorage !== 'undefined' ? localStorage : null),
+    logger: this.logger,
+    language: () => this.language.split('-')[0] ?? 'en',
+    identity: () => {
+      const s = this.store?.get();
+      return { externalId: s?.externalId ?? null, identityHash: s?.identityHash ?? null, subscriptionId: s?.subscriptionId ?? null, tokenHash: s?.tokenHash ?? null };
+    },
+    allowed: () => !!this.api && !this.consentPending(),
+  });
+  private chatWidget: ChatWidgetHandle | null = null;
 
   // --- Yaşam döngüsü ---
 
@@ -229,6 +262,7 @@ export class PushizoSdk {
     if (this.started) return;
     this.started = true;
     const options = this.options!;
+    this.captureAttribution();
     // Yapılandırma önce alınır: service worker yolu/kapsamı ve istem ayarları dashboard'dan gelebilir.
     try {
       this.config = await this.api!.request<SdkConfig>('GET', '/config');
@@ -270,6 +304,7 @@ export class PushizoSdk {
 
     // In-app mesajlar oturum başında listeyi alır; abonelik (push veya e-posta/SMS) yoksa beklemede kalır.
     this.inApp.start();
+    if (options.webCampaigns !== false) void this.webCampaigns.start();
     this.identityKey = this.currentIdentityKey();
 
     // Oturum takibi
@@ -630,6 +665,15 @@ export class PushizoSdk {
         });
         return;
       }
+      case 'attribution': {
+        const attribution = resolveAttributionOptions(this.options?.attribution);
+        // Kapatılmış veya saklama penceresi dışına düşmüş bekleyen dokunuş gönderilmeden atılır.
+        if (!attribution.enabled || !withinWindow(op.touch, Date.now(), attribution.windowMs)) return;
+        const owner = this.eventOwner();
+        if (!owner) throw new ApiError(0, 'NO_IDENTITY', 'dokunuşun bağlanacağı abonelik veya external_id yok');
+        await this.api!.request('POST', '/attribution', { ...owner, touches: [op.touch] });
+        return;
+      }
       case 'contact_add':
         await this.addContactNow(op.channel, op.token);
         return;
@@ -693,6 +737,30 @@ export class PushizoSdk {
     if (!this.store?.get().locationShared || this.consentPending()) return;
     this.store.update({ locationSentAt: Date.now() });
     this.enqueue({ type: 'location', location: fix, at: Date.now() });
+  }
+
+  // --- Atribüsyon (v3 Faz 23) ---
+
+  /**
+   * Sayfa adresindeki UTM/tıklama kimliğini dokunuş olarak saklar ve kuyruğa yazar (çerez kullanılmaz).
+   * Yalnızca `start()` içinden çağrılır: gizlilik onayı bekleniyorsa hiçbir şey okunmaz/saklanmaz.
+   */
+  private captureAttribution(): void {
+    if (typeof location === 'undefined' || this.consentPending()) return;
+    const result = captureTouch({
+      search: location.search,
+      href: location.href,
+      referrer: typeof document !== 'undefined' ? document.referrer : '',
+      ownHost: location.host,
+      now: Date.now(),
+      touchId: newEventId(),
+      state: this.store!.get().attribution,
+      options: resolveAttributionOptions(this.options?.attribution),
+    });
+    if (!result) return;
+    this.store!.update({ attribution: result.state });
+    // Gönderim `start()` sonundaki flush'ta; kimlik yoksa abonelik/login gelene kadar kuyrukta bekler.
+    this.queue!.enqueue({ type: 'attribution', touch: result.touch, at: Date.now() });
   }
 
   // --- E-posta / SMS abonelikleri ---
@@ -910,6 +978,9 @@ export class PushizoSdk {
     this.identityKey = key;
     this.inbox.reset();
     this.inApp.onIdentityChanged();
+    this.chat.onIdentityChanged();
+    // Segment hedefli web kampanyaları abonelikli kimlikle yeniden değerlendirilir.
+    if (this.started && this.options?.webCampaigns !== false) void this.webCampaigns.refresh();
   }
 
   /** Kullanıcı kimliği; yoksa abonelik oluşturmayı dener, olmazsa yeniden denenebilir hata fırlatır. */
@@ -1300,6 +1371,22 @@ export class PushizoSdk {
       });
       this.enqueue({ type: 'preferences', preferences: normalized, at: Date.now() });
     },
+    /**
+     * Reklam kişiselleştirme rızası (ADR-0037): `true` iken kullanıcının e-posta/telefon SHA-256 özeti, app'in
+     * bağladığı reklam platformlarının kitlelerine gönderilebilir; `false` rızayı geri alır (sonraki senkronda
+     * kitlelerden çıkarılır). Tercihler gibi çevrimdışı kuyruğa alınır; kaynak `sdk` olarak kaydedilir.
+     */
+    setAdsPersonalizationConsent: (granted: boolean): void => {
+      this.assertReady();
+      this.enqueue({ type: 'preferences', preferences: [{ category: 'ads_personalization', optedIn: granted === true }], at: Date.now() });
+    },
+    /** Rıza kayıtları (`ads_personalization` …); abonelik ve sahiplik kanıtı gerekir. */
+    getConsents: async (): Promise<ConsentState[]> => {
+      this.assertReady();
+      const auth = this.preferencesAuth();
+      if (!auth) throw new Error('Rıza bilgisi için abonelik gerekli (push, e-posta veya SMS).');
+      return preferencesFromApi(await fetchPreferences(this.api!, auth)).consents;
+    },
     /** `GET /config` ile gelen mesaj kategorileri (tercih merkezi arayüzü için; ağ çağrısı yapmaz). */
     getCategories: (): PreferenceCategory[] =>
       (this.config?.categories ?? []).map(categoryFromApi),
@@ -1543,6 +1630,40 @@ export class PushizoSdk {
     },
   };
 
+  /**
+   * Web kampanyaları (ADR-0039): dashboard'da yayınlanan pop-up / banner / slide-in, gömülü form ve anketler. Tetik,
+   * sayfa koşulları ve sıklık SDK'da değerlendirilir; `show` koşulları atlayarak gösterir (test/önizleme).
+   */
+  readonly WebCampaigns = {
+    addListener: (cb: Listener<WebCampaignEvent>): (() => void) => {
+      this.webCampaigns.listeners.add(cb);
+      return () => this.webCampaigns.listeners.delete(cb);
+    },
+    removeListener: (cb: Listener<WebCampaignEvent>): void => {
+      this.webCampaigns.listeners.delete(cb);
+    },
+    show: (campaignId: string): Promise<boolean> => this.webCampaigns.showById(campaignId),
+    refresh: (): Promise<void> => this.webCampaigns.refresh(),
+    /** true: tetikler kampanya göstermez (ör. ödeme adımında). */
+    setPaused: (paused: boolean): void => {
+      this.webCampaigns.paused = paused;
+    },
+  };
+
+  /** Birleşik atribüsyon (v3 Faz 23): bu cihazda yakalanan ilk ve son UTM/tıklama kimliği dokunuşu. */
+  readonly Attribution = {
+    /** Ağ çağrısı yapmaz; saklama penceresi dışına düşen kayıt okunurken silinir. */
+    get: (): AttributionState => {
+      const store = this.store;
+      const saved = store?.get().attribution;
+      if (!store || !saved) return { first: null, last: null };
+      const state = pruneAttribution(saved, Date.now(), resolveAttributionOptions(this.options?.attribution).windowMs);
+      if (state.first !== saved.first || state.last !== saved.last)
+        store.update({ attribution: state.first || state.last ? state : null });
+      return { first: state.first && { ...state.first }, last: state.last && { ...state.last } };
+    },
+  };
+
   /** Bildirim kutusu (docs/messaging.md §8); kullanıcı ve ona ait bir abonelik gerekir. */
   readonly Inbox = {
     list: async (options?: InboxListOptions) => {
@@ -1580,6 +1701,70 @@ export class PushizoSdk {
     this.enqueue({ type, channel, token, at: Date.now() });
   }
 
+  /**
+   * Canlı sohbet (ADR-0040). `show()` widget'ı (ayrı paket) yükleyip başlatıcı düğmeyi gösterir; arayüzsüz kullanım
+   * için `connect()` + `sendMessage()` + `on('messages', …)`. Ziyaretçi giriş yapınca (`login`) sohbet kullanıcıya bağlanır.
+   */
+  readonly Chat = {
+    show: async (options: ChatWidgetOptions = {}): Promise<void> => {
+      this.assertReady();
+      if (this.chatWidget) {
+        if (options.open) this.chatWidget.open();
+        return;
+      }
+      const config = await this.chat.config();
+      if (!config.enabled) {
+        this.logger.info('canlı sohbet widget\'ı app ayarında kapalı');
+        return;
+      }
+      const mountOptions = { ...options, config, language: this.language.split('-')[0] ?? 'en' };
+      if (options.mount) this.chatWidget = options.mount(this.chat, mountOptions);
+      else {
+        const widget = await loadChatWidget(options.widgetUrl ?? `${this.apiSeed}/sdk-web/PushizoChatWidget.js`, options.nonce);
+        this.chatWidget = widget.mount(this.chat, mountOptions);
+      }
+      if (options.open) this.chatWidget.open();
+    },
+    hide: (): void => {
+      this.chatWidget?.destroy();
+      this.chatWidget = null;
+      this.chat.disconnect();
+    },
+    open: (): void => this.chatWidget?.open(),
+    close: (): void => this.chatWidget?.close(),
+    toggle: (): void => this.chatWidget?.toggle(),
+    /** Arayüzsüz: canlı akışı başlatır (mesajlar `on('messages')` ile gelir). */
+    connect: async (): Promise<void> => {
+      this.assertReady();
+      await this.chat.connect();
+    },
+    disconnect: (): void => this.chat.disconnect(),
+    sendMessage: async (text: string, options?: { optionId?: string; name?: string; email?: string }) => {
+      this.assertReady();
+      return this.chat.send(text, options);
+    },
+    sendFile: async (file: Blob, name: string, text?: string) => {
+      this.assertReady();
+      return this.chat.sendFile(file, name, text);
+    },
+    retry: (clientMessageId: string) => this.chat.retry(clientMessageId),
+    getMessages: async (beforeSeq?: number) => {
+      this.assertReady();
+      return this.chat.load(beforeSeq);
+    },
+    markRead: (): Promise<void> => this.chat.markRead(),
+    leaveOfflineMessage: (input: { email: string; text: string; name?: string }) => this.chat.leaveOfflineMessage(input),
+    getUnreadCount: async (): Promise<number> => {
+      this.assertReady();
+      await this.chat.refresh();
+      return this.chat.unread;
+    },
+    get unreadCount(): number {
+      return sdkRef.chat.unread;
+    },
+    on: <K extends keyof ChatEvents>(event: K, cb: (value: ChatEvents[K]) => void): (() => void) => this.chat.on(event, cb),
+  };
+
   readonly Debug = {
     setLogLevel: (level: LogLevel): void => this.logger.setLevel(level),
   };
@@ -1603,6 +1788,7 @@ export class PushizoSdk {
     this.unmountBell?.();
     this.session?.end();
     this.inApp.destroy();
+    this.webCampaigns.destroy();
   }
 }
 

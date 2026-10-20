@@ -37,7 +37,7 @@ Site kökünde `PushizoSDKWorker.js` bulunmalıdır (içeriği API'deki worker'�
 | Alan | Üyeler |
 |------|--------|
 | Yaşam döngüsü | `init`, `setConsentGiven`, `login(externalId, identityHash?)`, `logout`, `destroy` |
-| `User` | `addTag(s)`, `removeTag(s)`, `getTags`, `setLanguage`, `setProperty`, `addAlias(es)`, `removeAlias`, `addEmail`, `removeEmail`, `addSms`, `removeSms`, `getPreferences()`, `setPreferences([...])`, `getCategories()`, `id`, `externalId`, `pushSubscription.{id, token, optedIn, state, optIn, optOut, addObserver}` |
+| `User` | `addTag(s)`, `removeTag(s)`, `getTags`, `setLanguage`, `setProperty`, `addAlias(es)`, `removeAlias`, `addEmail`, `removeEmail`, `addSms`, `removeSms`, `getPreferences()`, `setPreferences([...])`, `getCategories()`, `setAdsPersonalizationConsent(bool)`, `getConsents()`, `id`, `externalId`, `pushSubscription.{id, token, optedIn, state, optIn, optOut, addObserver}` |
 | `Notifications` | `permission`, `requestPermission`, `addClickListener`, `addForegroundLifecycleListener` |
 | `Slidedown` | `promptPush`, `promptEmail`, `promptSms`, `promptEmailAndSms` (hepsi `{ force? }`) |
 | `Session` | `sendEvent(name, properties?, value?)` |
@@ -45,6 +45,43 @@ Site kökünde `PushizoSDKWorker.js` bulunmalıdır (içeriği API'deki worker'�
 | `Inbox` | `list`, `markRead`, `markAllRead`, `archive`, `unreadCount`, `addObserver` |
 | `CustomLink` | `render` |
 | `Location` | `setShared(bool)`, `isShared`, `requestPermission(rationale?)` (yalnızca ön plan; ayrıntı `docs/sdk/web.md` "Konum") |
+| `Attribution` | `get(): { first, last }` (UTM / tıklama kimliği dokunuşları; aşağıdaki bölüm) |
+
+## Atribüsyon (UTM ve tıklama kimlikleri)
+
+SDK her sayfa açılışında adresteki `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `utm_id` ve
+reklam tıklama kimliklerini (`fbclid`, `gclid`, `gbraid`, `wbraid`, `ttclid`, `li_fat_id`, `msclkid`; birden çoksa bu
+sırayla ilki) okur ve bir **dokunuş** kaydeder.
+
+```ts
+await Pushizo.init({
+  appId: 'app_…',
+  attribution: { enabled: true, windowDays: 30, captureClickIds: true }, // varsayılanlar
+});
+const { first, last } = Pushizo.Attribution.get(); // ilk ve son dokunuş (yoksa null)
+```
+
+- `enabled: false`: hiçbir parametre okunmaz, saklanmaz, gönderilmez. `windowDays` 1–90 aralığına kırpılır;
+  `captureClickIds: false` iken yalnızca UTM parametreleri dokunuş üretir.
+- **Saklama**: çerez yazılmaz; ilk ve son dokunuş SDK'nın yerel deposunda (`localStorage`, `hs:<appId>`) tutulur ve
+  `windowDays`'ten eski kayıtlar okunurken silinir. Aynı parametrelerle 30 dakika içindeki yeniden yükleme yeni dokunuş
+  sayılmaz.
+- **Kişisel veri**: `landing_url` yalnızca origin + yoldur (sorgu ve hash alınmaz); `referrer` yalnızca yönlendiren
+  sitenin host'udur, sitenin kendi host'u gönderilmez.
+- **Rıza**: `requiresPrivacyConsent` açıkken onay verilene kadar hiçbir şey yakalanmaz; `setConsentGiven(false)`
+  atribüsyon kayıtlarını ve bekleyen dokunuşları siler.
+- **Gönderim**: dokunuşlar çevrimdışı kuyrukla `POST /sdk/v1/apps/{appId}/attribution`'a gider; abonelik varsa
+  `subscription_id` + sahiplik kanıtı (`token_hash` / `identity_hash`), yoksa `login` ile verilen `external_id`
+  kullanılır. İkisi de yoksa dokunuş cihazda bekler, abonelik oluşunca veya `login` sonrası gönderilir. `touch_id`
+  yeniden denemelerde aynı kalır (sunucu tekilleştirir).
+
+Önerilen reklam URL parametreleri (izleme şablonu / URL parametreleri alanı):
+
+| Platform | Parametreler |
+|----------|--------------|
+| Meta | `utm_source=facebook&utm_campaign={{campaign.id}}&utm_content={{adset.id}}` (`fbclid` otomatik eklenir) |
+| Google Ads | `utm_source=google&utm_campaign={campaignid}&utm_content={adgroupid}` (otomatik etiketleme açıkken `gclid` / `gbraid` / `wbraid` gelir) |
+| TikTok | `utm_source=tiktok&utm_campaign=__CAMPAIGN_ID__&utm_content=__AID__` (`ttclid` otomatik eklenir) |
 
 ## Faz 12 (ADR-0019) eklemeleri
 
@@ -57,6 +94,8 @@ Pushizo.User.setPreferences([
 ]);
 ```
 `GET/PUT /sdk/v1/apps/{appId}/preferences`; abonelik sahiplik kanıtı (`token_hash`, login'de `identity_hash`) otomatik eklenir. `setPreferences` çevrimdışı kuyruğa yazılır.
+
+Reklam kişiselleştirme rızası (ADR-0037): `Pushizo.User.setAdsPersonalizationConsent(true)` kullanıcının e-posta/telefon SHA-256 özetinin app'in bağladığı reklam platformu kitlelerine gönderilmesine izin verir; `false` geri alır (sonraki senkronda kitlelerden çıkarılır). `getConsents()` rıza kayıtlarını döner. Rehber: `docs/guides/ad-audiences.md`.
 
 ### E-posta/SMS toplama istemi
 ```ts

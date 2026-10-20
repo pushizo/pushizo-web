@@ -40,6 +40,10 @@
       }
     },
     "./sw": "./dist/PushizoSDKWorker.js",
+    "./chat-widget": {
+      "types": "./dist/chat-widget/index.d.ts",
+      "default": "./dist/chat-widget.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

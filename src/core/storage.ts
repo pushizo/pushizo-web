@@ -33,6 +33,7 @@ export const DEFAULT_STATE: PersistedState = {
   locationPermissionGranted: false,
   regionalApiUrl: null,
   regionalApiSeed: null,
+  attribution: null,
 };
 
 /** Bellek içi yedek: localStorage yoksa (gizli mod/kısıtlı tarayıcı) oturum süresince çalışır. */

@@ -10,6 +10,7 @@ import type {
   SlidedownCollect,
   UserPreference,
   UserPreferences,
+  ConsentState,
 } from './types.js';
 
 export interface ApiOptions {
@@ -247,6 +248,8 @@ export interface SdkPreferences {
     updated_at: string | null;
   }[];
   categories: SdkCategory[];
+  /** Rıza kayıtları (ADR-0037); eski API sürümlerinde yok. */
+  consents?: { purpose: string; granted: boolean; source: string | null; updated_at: string | null }[];
 }
 
 /** `GET /config` → `categories[]` öğesi. */
@@ -297,7 +300,8 @@ export function preferencesFromApi(result: SdkPreferences): UserPreferences {
     source: p.source ?? null,
     updatedAt: p.updated_at ?? null,
   }));
-  return { preferences, categories: (result.categories ?? []).map(categoryFromApi) };
+  const consents: ConsentState[] = (result.consents ?? []).map((c) => ({ purpose: c.purpose, granted: c.granted === true, source: c.source ?? null, updatedAt: c.updated_at ?? null }));
+  return { preferences, categories: (result.categories ?? []).map(categoryFromApi), consents };
 }
 
 /**
