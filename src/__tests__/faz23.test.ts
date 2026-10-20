@@ -339,3 +339,19 @@ describe('Attribution (SDK)', () => {
     expect(api.attribution()).toHaveLength(1);
   });
 });
+
+describe('Session.sendEvent eventId (Conversions API tekilleştirmesi)', () => {
+  it('verilen event_id piksel kimliğiyle aynı gönderilir; geçersizse SDK üretir', async () => {
+    presetSubscription();
+    const api = fakeApi();
+    const hs = createSdk();
+    await init(hs, { attribution: { enabled: false } });
+    hs.Session.sendEvent('purchase', { currency: 'TRY' }, 149.9, { eventId: 'pixel-evt-0001' });
+    hs.Session.sendEvent('purchase', undefined, 1, { eventId: 'x' });
+    await vi.waitFor(() => expect(api.calls.filter((c) => c.path === '/events').length).toBeGreaterThan(0), { timeout: 4000 });
+    await vi.waitFor(() => expect(hs.pendingOperations).toBe(0), { timeout: 4000 });
+    const all = api.calls.filter((c) => c.path === '/events').flatMap((c) => (c.body!.events as { event_id: string }[]).map((e) => e.event_id));
+    expect(all).toContain('pixel-evt-0001');
+    expect(all).not.toContain('x');
+  });
+});
