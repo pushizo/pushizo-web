@@ -40,6 +40,7 @@ export function needsIdentity(op: QueuedOperation): boolean {
     case 'event':
     case 'event_batch':
     case 'location':
+    case 'attribution':
       return true;
     default:
       return false;

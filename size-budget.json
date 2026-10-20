@@ -3,6 +3,8 @@
   "files": {
     "dist/PushizoSDK.js": 40960,
     "dist/PushizoSDKWorker.js": 6144,
+    "dist/PushizoChatWidget.js": 10240,
+    "dist/PushizoWebCampaigns.js": 8192,
     "dist/index.js": 61440,
     "dist/cjs/index.cjs": 61440
   }

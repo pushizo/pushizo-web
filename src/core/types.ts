@@ -185,6 +185,49 @@ export interface InitOptions {
   notificationClickHandlerAction?: 'navigate' | 'focus';
   /** İzin istemi ek ayarları: özel bağlantı ve geri çekilme takvimi. */
   promptOptions?: PromptOptions;
+  /** Web kampanyaları (pop-up / banner / slide-in, formlar, anketler; ADR-0039); varsayılan açık, `false` kapatır. */
+  webCampaigns?: boolean;
+  /** UTM ve reklam tıklama kimliği yakalama (birleşik atribüsyon, v3 Faz 23); varsayılan açık. */
+  attribution?: AttributionOptions;
+}
+
+/** Atribüsyon seçenekleri. */
+export interface AttributionOptions {
+  /** `false`: hiçbir parametre okunmaz, saklanmaz ve gönderilmez (varsayılan true). */
+  enabled?: boolean;
+  /** İlk/son dokunuşun saklanma süresi, gün (varsayılan 30; 1–90 aralığına kırpılır). */
+  windowDays?: number;
+  /** `fbclid`, `gclid` … tıklama kimlikleri de yakalansın (varsayılan true). */
+  captureClickIds?: boolean;
+}
+
+/** Reklam tıklama kimliği parametresi (birden çoksa bu sırayla ilki alınır). */
+export type ClickIdType = 'fbclid' | 'gclid' | 'gbraid' | 'wbraid' | 'ttclid' | 'li_fat_id' | 'msclkid';
+
+/** Atribüsyon dokunuşu; alan adları sunucu sözleşmesiyle (`POST /attribution`) aynıdır. */
+export interface AttributionTouch {
+  /** İstemcide üretilir; yeniden denemede aynı kalır (sunucu tekilleştirir). */
+  touch_id: string;
+  /** ISO-8601. */
+  occurred_at: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_term?: string;
+  utm_content?: string;
+  utm_id?: string;
+  click_id_type?: ClickIdType;
+  click_id?: string;
+  /** Yalnızca origin + yol; sorgu ve hash (olası kişisel veri) alınmaz. */
+  landing_url?: string;
+  /** Yönlendiren sitenin host'u (sitenin kendi host'u hariç). */
+  referrer?: string;
+}
+
+/** `Attribution.get()`: ilk ve son dokunuş (pencere dışındakiler null). */
+export interface AttributionState {
+  first: AttributionTouch | null;
+  last: AttributionTouch | null;
 }
 
 export interface PushSubscriptionState {
@@ -276,6 +319,8 @@ export interface PersistedState {
    */
   regionalApiUrl: string | null;
   regionalApiSeed: string | null;
+  /** İlk/son atribüsyon dokunuşu (çerezsiz, yalnızca bu depoda; onay geri alınınca silinir). */
+  attribution: AttributionState | null;
 }
 
 // --- Kullanıcı tercihleri (ADR-0019 §4) ---
@@ -308,9 +353,22 @@ export interface PreferenceInput {
   channel?: Channel | null;
 }
 
+/**
+ * Rıza kaydı (ADR-0037): `ads_personalization` = e-posta/telefon özetinin reklam platformlarıyla paylaşılması.
+ * Varsayılan rıza yoktur; yalnızca açık onay `granted: true` olur.
+ */
+export interface ConsentState {
+  purpose: string;
+  granted: boolean;
+  source: string | null;
+  updatedAt: string | null;
+}
+
 export interface UserPreferences {
   preferences: UserPreference[];
   categories: PreferenceCategory[];
+  /** Rıza kayıtları (ör. `ads_personalization`). */
+  consents: ConsentState[];
 }
 
 /** E-posta/SMS kanalı (web SDK'nın eklediği ek abonelikler). */
@@ -521,6 +579,8 @@ export type QueuedOperation =
   | { type: 'preferences'; preferences: PreferenceInput[]; at: number }
   /** Konum (`Location.setShared`): push aboneliğine PATCH edilir; `null` sunucudaki konumu ve rıza kaydını siler. */
   | { type: 'location'; location: LocationFix | null; at: number }
+  /** Atribüsyon dokunuşu (`POST /attribution`); kimlik (abonelik/login) gelene kadar bekler. */
+  | { type: 'attribution'; touch: AttributionTouch; at: number }
   /** Kuyruk flush'ında ardışık olaylardan oluşturulan toplu gönderim (kalıcı saklanmaz). */
   | { type: 'event_batch'; events: Extract<QueuedOperation, { type: 'event' }>[]; at: number };
 
@@ -530,3 +590,118 @@ export type WorkerMessage =
   | { type: 'hs:subscription-change'; subscription: PushSubscriptionJSON | null }
   | { type: 'hs:received'; deliveryId: string }
   | { type: 'hs:push-received'; payload: WebPushPayload };
+
+// --- Web kampanyaları (pop-up / banner / slide-in; ADR-0039) ---
+
+export type WebCampaignLayout = 'popup' | 'banner_top' | 'banner_bottom' | 'slide_in' | 'fullscreen';
+
+export type WebCampaignAction =
+  | { type: 'dismiss' }
+  | { type: 'url'; url: string; new_tab?: boolean }
+  | { type: 'push_prompt' }
+  | { type: 'outcome'; name: string; value?: number }
+  | { type: 'tags'; tags: Record<string, string> };
+
+export type WebCampaignBlock =
+  | { type: 'image'; url: string; alt: string }
+  | { type: 'title'; text: string }
+  | { type: 'body'; text: string }
+  | { type: 'button'; id: string; text: string; action: WebCampaignAction; background_color: string | null; text_color: string | null };
+
+export interface WebCampaignDisplay {
+  layout: WebCampaignLayout;
+  position: 'left' | 'right';
+  background_color: string | null;
+  text_color: string | null;
+  dismissible: boolean;
+  auto_dismiss_seconds: number | null;
+  max_width: number | null;
+  blocks: WebCampaignBlock[];
+  form_id: string | null;
+  survey_id: string | null;
+}
+
+export type WebCampaignTrigger =
+  | { kind: 'page_load'; delay_seconds?: number }
+  | { kind: 'time_on_page'; seconds: number }
+  | { kind: 'scroll_depth'; percent: number }
+  | { kind: 'exit_intent' };
+
+export interface WebCampaignConditions {
+  url_rules?: { op: 'equals' | 'contains' | 'starts_with' | 'not_contains' | 'matches'; value: string }[];
+  utm_rules?: { param: string; op: 'equals' | 'contains' | 'exists'; value?: string }[];
+  visits?: { op: 'gte' | 'lte' | 'eq'; value: number };
+}
+
+export interface WebCampaignFrequency {
+  max_per_session?: number;
+  max_per_day?: number;
+  max_total?: number;
+  hide_after_close_days?: number;
+  stop_after_conversion?: boolean;
+}
+
+export interface WebCampaign {
+  id: string;
+  priority: number;
+  trigger: WebCampaignTrigger;
+  conditions: WebCampaignConditions;
+  targeting: { visitor: 'all' | 'new' | 'returning'; devices: ('desktop' | 'mobile' | 'tablet')[] };
+  frequency: WebCampaignFrequency;
+  display: WebCampaignDisplay;
+  variants: { id: string; weight_percent: number; display: WebCampaignDisplay }[];
+  end_at: string | null;
+}
+
+export interface WebFormField {
+  id: string;
+  type: 'email' | 'phone' | 'first_name' | 'last_name' | 'full_name' | 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'consent';
+  label: string;
+  placeholder: string | null;
+  required: boolean;
+  options: { value: string; label: string }[];
+  max_length: number | null;
+  policy_url: string | null;
+}
+
+export interface WebForm {
+  id: string;
+  fields: WebFormField[];
+  submit_label: string;
+  success_message: string;
+}
+
+export interface WebSurveyQuestion {
+  id: string;
+  type: 'nps' | 'csat' | 'single_choice' | 'multiple_choice' | 'text';
+  text: string;
+  required: boolean;
+  options: { value: string; label: string }[];
+  low_label: string | null;
+  high_label: string | null;
+  placeholder: string | null;
+}
+
+export interface WebSurvey {
+  id: string;
+  questions: WebSurveyQuestion[];
+  submit_label: string;
+  thank_you: string;
+}
+
+export interface WebCampaignList {
+  data: WebCampaign[];
+  forms: Record<string, WebForm>;
+  surveys: Record<string, WebSurvey>;
+  language: string;
+}
+
+/** `WebCampaigns.addListener` olayları. */
+export interface WebCampaignEvent {
+  type: 'show' | 'click' | 'close' | 'submit';
+  campaignId: string;
+  variantId: string | null;
+  buttonId?: string;
+  /** Form gönderiminde oluşan gönderim kimliği / anket yanıtı kimliği. */
+  resultId?: string | null;
+}
