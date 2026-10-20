@@ -190,6 +190,15 @@ export class ChatClient {
     return this.unreadCount;
   }
 
+  /**
+   * Ziyaretçinin henüz okundu işaretlemediği temsilci/bot mesajı var mı. Okunmamış sayacından bağımsızdır: yoklama
+   * (SSE yedeği) yolunda sayaç artmaz ve akış olayında sayaç `messages` olayından sonra güncellenir.
+   */
+  get hasUnread(): boolean {
+    const readSeq = this.conv?.visitor_last_read_seq ?? 0;
+    return this.unreadCount > 0 || this.messagesList.some((m) => m.sender !== 'visitor' && !m.pending && !m.failed && m.seq > readSeq);
+  }
+
   // ---------------------------------------------------------------- kimlik
 
   private storageKey(): string {
@@ -451,6 +460,8 @@ export class ChatClient {
     if (seq <= this.conv.visitor_last_read_seq && this.unreadCount === 0) return;
     const res = await this.requireApi().request<{ conversation: ChatConversation | null; unread_count: number }>('POST', '/chat/ack', { ...this.auth(), read_seq: seq, delivered_seq: seq });
     if (res.conversation) this.conv = res.conversation;
+    // Yanıttaki konuşma eski okundu sırasını taşısa bile gönderilen sıra okunmuş sayılır (tekrar işaretleme döngüsü olmaz).
+    if (this.conv && this.conv.visitor_last_read_seq < seq) this.conv = { ...this.conv, visitor_last_read_seq: seq };
     this.setUnread(res.unread_count);
   }
 
@@ -547,10 +558,11 @@ export class ChatClient {
 
   private onStreamMessage(raw: string): void {
     this.parse<ChatMessage>(raw, (m) => {
+      // Sayaç `messages` olayından önce artar: dinleyiciler (widget okundu işareti, rozet) güncel değeri görür.
+      if (m.sender !== 'visitor') this.setUnread(this.unreadCount + 1);
       this.ingest([m]);
       if (m.sender !== 'visitor') {
         this.emit('typing', { typing: false, name: m.author_name });
-        this.setUnread(this.unreadCount + 1);
         // Teslim alındı işaretçisi (okundu widget görünürken ayrıca gönderilir).
         void this.deps.api()?.request('POST', '/chat/ack', { ...this.auth(), delivered_seq: m.seq }).catch(() => undefined);
       }
