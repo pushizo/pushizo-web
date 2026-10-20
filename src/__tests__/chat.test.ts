@@ -187,10 +187,14 @@ describe('ChatClient', () => {
     expect(c.unread).toBe(2);
     const es = FakeEventSource.last!;
     expect(es.url).toContain('/chat/stream?');
+    // Widget `messages` olayında okundu işaretler; sayaç bu olaydan önce güncellenmiş olmalı.
+    const unreadAtMessages: [number, boolean][] = [];
+    c.on('messages', () => unreadAtMessages.push([c.unread, c.hasUnread]));
     es.emit('typing', { typing: true, name: 'Ayşe' });
     es.emit('message', msg({ id: 'cvm_9', seq: 9 }));
     expect(c.messages.map((m) => m.seq)).toEqual([9]);
     expect(c.unread).toBe(3);
+    expect(unreadAtMessages[0]).toEqual([3, true]);
     expect(typing).toEqual([true, false]);
     await Promise.resolve();
     expect(server.calls.some((x) => x.url.endsWith('/chat/ack') && x.body?.delivered_seq === 9)).toBe(true);
@@ -199,6 +203,7 @@ describe('ChatClient', () => {
     expect(c.messages).toHaveLength(1);
     await c.markRead();
     expect(c.unread).toBe(0);
+    expect(c.hasUnread).toBe(false);
     c.disconnect();
     expect(es.closed).toBe(true);
   });

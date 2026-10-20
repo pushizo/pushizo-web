@@ -374,7 +374,7 @@ export function mountChatWidget(client: ChatClient, options: ChatWidgetMountOpti
 
   // ---------------------------------------------------------------- aç/kapat
   const markReadIfVisible = () => {
-    if (opened && document.visibilityState === 'visible' && client.unread > 0) void client.markRead().catch(() => undefined);
+    if (opened && document.visibilityState === 'visible' && client.hasUnread) void client.markRead().catch(() => undefined);
   };
 
   const open = () => {
