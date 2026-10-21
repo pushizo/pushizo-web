@@ -6,10 +6,10 @@
   "homepage": "https://docs.pushizo.com/docs/sdk/web",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/exec0de/pushizo.git",
-    "directory": "sdk/web"
+    "url": "git+https://github.com/pushizo/pushizo-web.git"
   },
   "bugs": {
+    "url": "https://github.com/pushizo/pushizo-web/issues",
     "email": "support@pushizo.com"
   },
   "keywords": [
