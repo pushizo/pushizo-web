@@ -16,6 +16,14 @@
 > **Status:** The script tag is served by the Pushizo API today; the npm package is being published.<br>
 > **Durum:** Script etiketi bugün Pushizo API'sinden sunulur; npm paketinin yayını hazırlanıyor.
 
+**Install from GitHub until then · O zamana kadar GitHub'dan kurulum:**
+
+```bash
+npm install https://github.com/pushizo/pushizo-web/releases/download/v0.1.0/pushizo-web-0.1.0.tgz
+```
+
+**After publication · Yayından sonra:**
+
 ```html
 <script src="https://api.pushizo.com/sdk-web/PushizoSDK.js" async></script>
 <script>
