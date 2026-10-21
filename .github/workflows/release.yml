@@ -1,0 +1,42 @@
+# npm yayını
+#
+# Trusted publishing (OIDC): uzun ömürlü belirteç saklanmaz. Ana depodaki yayın betiği paketi test edip derler, bu
+# deponun GitHub Release'ine ekler ve bu iş akışını sürüm etiketiyle çalıştırır:
+#   npm run sdk:publish -- <hedef> --yalnizca-github --tetikle --yayinla
+# Elle: Actions → Release → Run workflow → tag.
+# Kurulum (bir kez): npmjs.com → paket → Settings → Trusted publishing → GitHub Actions: pushizo / pushizo-web / release.yml.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Sürüm etiketi (ör. v0.1.0)
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Paket dosyalarını release'ten al
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.tgz' --dir dist
+      - name: Yayımla (provenance ile)
+        run: |
+          npm install -g npm@latest
+          for f in dist/*.tgz; do
+            id=$(tar -xOzf "$f" package/package.json | node -p "const p=JSON.parse(require('fs').readFileSync(0,'utf8')); p.name+'@'+p.version")
+            if npm view "$id" version >/dev/null 2>&1; then echo "$id zaten yayında"; continue; fi
+            npm publish "$f" --access public --provenance
+          done
