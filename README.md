@@ -1,8 +1,44 @@
+<!-- pushizo:header -->
+<p align="center">
+  <a href="https://pushizo.com"><img src="https://raw.githubusercontent.com/pushizo/.github/main/profile/assets/mark.svg" alt="Pushizo" width="56" height="56"></a>
+</p>
+<p align="center">
+  <a href="https://docs.pushizo.com/docs/sdk/web"><img src="https://img.shields.io/badge/docs-docs.pushizo.com-5b4bdb" alt="Docs"></a>
+  <a href="https://docs.pushizo.com/docs/api"><img src="https://img.shields.io/badge/API-reference-b44fc4" alt="API reference"></a>
+  <a href="https://github.com/pushizo/pushizo-web/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-16130f" alt="License: MIT"></a>
+</p>
+<p align="center"><a href="#english">English</a> · <a href="#türkçe">Türkçe</a></p>
+
+## English
+
+**Pushizo Web SDK** — Web push permission and subscription (VAPID), email and SMS subscriptions, users, tags and aliases, events, in-app messages, notification inbox, user preferences and the service worker. The API surface is compatible with eski sağlayıcı v5.
+
+> **Status:** The script tag is served by the Pushizo API today; the npm package is being published.<br>
+> **Durum:** Script etiketi bugün Pushizo API'sinden sunulur; npm paketinin yayını hazırlanıyor.
+
+```html
+<script src="https://api.pushizo.com/sdk-web/PushizoSDK.js" async></script>
+<script>
+  window.PushizoDeferred = window.PushizoDeferred || [];
+  PushizoDeferred.push((Pushizo) => Pushizo.init({ appId: 'app_…' }));
+</script>
+```
+
+```bash
+npm install @pushizo/web
+```
+
+The detailed guide below is in Turkish; code samples are language-neutral. Full documentation:
+[docs.pushizo.com/docs/sdk/web](https://docs.pushizo.com/docs/sdk/web) · API reference: [docs.pushizo.com/docs/api](https://docs.pushizo.com/docs/api).
+
+## Türkçe
+<!-- /pushizo:header -->
+
 # @pushizo/web
 
 Pushizo Web SDK: Web Push izni ve aboneliği, e-posta/SMS aboneliği, kullanıcı/tag/alias yönetimi, olaylar, in-app mesajlar, bildirim kutusu, kullanıcı tercihleri ve service worker. eski sağlayıcı v5 yüzeyiyle uyumludur.
 
-Ayrıntılı kullanım kılavuzu: [`docs/sdk/web.md`](../../docs/sdk/web.md). Örnekler: `examples/web-vanilla`, `examples/web-nextjs`.
+Ayrıntılı kullanım kılavuzu: [docs.pushizo.com/docs/sdk/web](https://docs.pushizo.com/docs/sdk/web).
 
 ## Kurulum
 
@@ -44,7 +80,7 @@ Site kökünde `PushizoSDKWorker.js` bulunmalıdır (içeriği API'deki worker'�
 | `InAppMessages` | `addTrigger(s)`, `removeTrigger(s)`, `clearTriggers`, `getTriggers`, `setScreen`, `addClickListener`, `addLifecycleListener`, `paused` |
 | `Inbox` | `list`, `markRead`, `markAllRead`, `archive`, `unreadCount`, `addObserver` |
 | `CustomLink` | `render` |
-| `Location` | `setShared(bool)`, `isShared`, `requestPermission(rationale?)` (yalnızca ön plan; ayrıntı `docs/sdk/web.md` "Konum") |
+| `Location` | `setShared(bool)`, `isShared`, `requestPermission(rationale?)` (yalnızca ön plan; ayrıntı [web rehberi](https://docs.pushizo.com/docs/sdk/web) "Konum") |
 | `Attribution` | `get(): { first, last }` (UTM / tıklama kimliği dokunuşları; aşağıdaki bölüm) |
 
 ## Atribüsyon (UTM ve tıklama kimlikleri)
@@ -83,7 +119,7 @@ const { first, last } = Pushizo.Attribution.get(); // ilk ve son dokunuş (yoksa
 | Google Ads | `utm_source=google&utm_campaign={campaignid}&utm_content={adgroupid}` (otomatik etiketleme açıkken `gclid` / `gbraid` / `wbraid` gelir) |
 | TikTok | `utm_source=tiktok&utm_campaign=__CAMPAIGN_ID__&utm_content=__AID__` (`ttclid` otomatik eklenir) |
 
-## Faz 12 (ADR-0019) eklemeleri
+## Tercihler, kategoriler ve diğer özellikler
 
 ### Kullanıcı tercihleri
 ```ts
@@ -95,7 +131,7 @@ Pushizo.User.setPreferences([
 ```
 `GET/PUT /sdk/v1/apps/{appId}/preferences`; abonelik sahiplik kanıtı (`token_hash`, login'de `identity_hash`) otomatik eklenir. `setPreferences` çevrimdışı kuyruğa yazılır.
 
-Reklam kişiselleştirme rızası (ADR-0037): `Pushizo.User.setAdsPersonalizationConsent(true)` kullanıcının e-posta/telefon SHA-256 özetinin app'in bağladığı reklam platformu kitlelerine gönderilmesine izin verir; `false` geri alır (sonraki senkronda kitlelerden çıkarılır). `getConsents()` rıza kayıtlarını döner. Rehber: `docs/guides/ad-audiences.md`.
+Reklam kişiselleştirme rızası: `Pushizo.User.setAdsPersonalizationConsent(true)` kullanıcının e-posta/telefon SHA-256 özetinin app'in bağladığı reklam platformu kitlelerine gönderilmesine izin verir; `false` geri alır (sonraki senkronda kitlelerden çıkarılır). `getConsents()` rıza kayıtlarını döner. Rehber: `docs/guides/ad-audiences.md`.
 
 ### E-posta/SMS toplama istemi
 ```ts
@@ -122,3 +158,24 @@ npm run -w sdk/web typecheck
 npx vitest run --project unit sdk/web
 ```
 Boyut bütçesi: IIFE gzip < 25 KB (~24,0 KB), service worker gzip < 5 KB (~3,9 KB).
+
+<!-- pushizo:footer -->
+---
+
+## Support · Destek
+
+- **Guide · Rehber:** [docs.pushizo.com/docs/sdk/web](https://docs.pushizo.com/docs/sdk/web)
+- **API reference & OpenAPI · API referansı ve OpenAPI:** [docs.pushizo.com/docs/api](https://docs.pushizo.com/docs/api) ·
+  [pushizo-openapi](https://github.com/pushizo/pushizo-openapi)
+- **Bugs & ideas · Hata ve öneri:** [Issues](https://github.com/pushizo/pushizo-web/issues)
+- **Security · Güvenlik:** please do not open public issues; email [security@pushizo.com](mailto:security@pushizo.com) ·
+  herkese açık issue açmayın, bu adrese yazın.
+- **Help · Destek:** [support@pushizo.com](mailto:support@pushizo.com)
+
+This repository is mirrored automatically from the Pushizo main repository on every release. Please open an issue
+instead of a pull request; fixes land in the main repository and ship with the next release.
+Bu depo her sürümde Pushizo ana deposundan otomatik yansıtılır. Pull request yerine issue açın; düzeltmeler ana depoda
+yapılır ve bir sonraki sürümle buraya gelir.
+
+Released under the MIT License · MIT lisanslıdır — [LICENSE](https://github.com/pushizo/pushizo-web/blob/main/LICENSE).
+<!-- /pushizo:footer -->
