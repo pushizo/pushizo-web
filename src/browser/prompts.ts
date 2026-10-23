@@ -24,7 +24,8 @@ const TEXTS = {
     collectAccept: 'Kaydol',
     emailLabel: 'E-posta adresi',
     smsLabel: 'Telefon numarası',
-    invalidEmail: 'Geçerli bir e-posta adresi girin (ör. ad@ornek.com).',
+    invalidEmail: 'Geçerli bir e-posta adresi girin (ör. ad@pushizo.com).',
+    emailPlaceholder: 'ad@pushizo.com',
     invalidPhone: 'Telefonu uluslararası biçimde girin (ör. +905321234567).',
     // Konum izni açıklaması (v2 Faz 17b)
     locationTitle: 'Konumunuzu paylaşın',
@@ -45,7 +46,8 @@ const TEXTS = {
     collectAccept: 'Sign up',
     emailLabel: 'Email address',
     smsLabel: 'Phone number',
-    invalidEmail: 'Enter a valid email address (e.g. name@example.com).',
+    invalidEmail: 'Enter a valid email address (e.g. name@pushizo.com).',
+    emailPlaceholder: 'name@pushizo.com',
     invalidPhone: 'Enter the phone in international format (e.g. +14155550100).',
     locationTitle: 'Share your location',
     locationMessage:
@@ -234,7 +236,7 @@ export function showSlidedown(options: SlidedownOptions, language: string, curre
     )}</span><input type="${kind === 'email' ? 'email' : 'tel'}" name="hs-${kind}" autocomplete="${
       kind === 'email' ? 'email' : 'tel'
     }" inputmode="${kind === 'email' ? 'email' : 'tel'}" placeholder="${
-      kind === 'email' ? 'name@example.com' : '+90 532 123 45 67'
+      kind === 'email' ? t.emailPlaceholder : '+90 532 123 45 67'
     }" aria-invalid="false"></label>`;
   const fieldsHtml = `${wantsEmail ? field('email') : ''}${wantsSms ? field('sms') : ''}${
     wantsEmail || wantsSms ? '<p class="hs-error" role="alert" aria-live="assertive"></p>' : ''

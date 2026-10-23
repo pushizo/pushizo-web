@@ -153,10 +153,10 @@ describe('in-app: A/B varyantı, app geneli aralık ve tetik grupları', () => {
     });
     const hs = createSdk();
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(api.find('GET', '/in-app')).toHaveLength(1));
     // E-posta aboneliğinin sahiplik kanıtı (kanonik adresin özeti) liste ve olay isteklerine eklenir.
-    const mailHash = await digest('a@example.com');
+    const mailHash = await digest('a@pushizo.com');
     expect(api.find('GET', '/in-app')[0]!.query).toEqual({ subscription_id: 'sub_mail', token_hash: mailHash, supports: 'html,carousel' });
 
     hs.Session.sendEvent('e1');
@@ -207,7 +207,7 @@ describe('in-app: A/B varyantı, app geneli aralık ve tetik grupları', () => {
     });
     const hs = createSdk();
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(api.find('GET', '/in-app')).toHaveLength(1));
     expect(shown('iam_dur')).toBe(false);
     await vi.waitFor(() => expect(shown('iam_dur')).toBe(true), { timeout: 3000 });
@@ -227,7 +227,7 @@ describe('in-app: A/B varyantı, app geneli aralık ve tetik grupları', () => {
     const hs = createSdk();
     const requestPermission = vi.spyOn(hs.Notifications, 'requestPermission').mockResolvedValue('denied');
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(api.find('GET', '/in-app')).toHaveLength(1));
     // Olaylar push aboneliği ya da external_id ister (mevcut kural): login ile kimlik verilir.
     await hs.login('u-42');
@@ -261,7 +261,7 @@ describe('kullanıcı tercihleri (User.getPreferences / setPreferences)', () => 
     ]);
     await expect(hs.User.getPreferences()).rejects.toThrow(/abonelik gerekli/);
     expect(() => hs.User.setPreferences([])).toThrow(/1-100/);
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(hs.pendingOperations).toBe(0));
 
     // Çevrimdışı: tercih kuyrukta bekler, bağlantı gelince gönderilir.
@@ -279,7 +279,7 @@ describe('kullanıcı tercihleri (User.getPreferences / setPreferences)', () => 
     vi.stubGlobal('fetch', online);
     window.dispatchEvent(new Event('online'));
     await vi.waitFor(() => expect(api.find('PUT', '/preferences')).toHaveLength(1));
-    const hash = await digest('a@example.com');
+    const hash = await digest('a@pushizo.com');
     expect(api.find('PUT', '/preferences')[0]!.body).toEqual({
       subscription_id: 'sub_mail',
       token_hash: hash,
@@ -325,11 +325,11 @@ describe('e-posta/SMS toplama istemi (slidedown collect)', () => {
     expect(box.querySelector('.hs-error')!.textContent).toContain('e-posta');
     expect(api.find('POST', '/subscriptions')).toHaveLength(0);
 
-    input.value = '  Ayse@Example.COM ';
+    input.value = '  Ayse@Pushizo.COM ';
     box.querySelector<HTMLButtonElement>('.hs-accept')!.click();
     expect(slidedown()).toBeNull();
     await vi.waitFor(() => expect(api.find('POST', '/subscriptions')).toHaveLength(1));
-    expect(api.find('POST', '/subscriptions')[0]!.body).toMatchObject({ channel: 'email', token: 'ayse@example.com' });
+    expect(api.find('POST', '/subscriptions')[0]!.body).toMatchObject({ channel: 'email', token: 'ayse@pushizo.com' });
     expect(stored().contactPromptAnswered).toBe(true);
     // Yanıtlandı: force ile bile yeniden gösterilmez.
     await hs.Slidedown.promptEmail({ force: true });

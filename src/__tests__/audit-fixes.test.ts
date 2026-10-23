@@ -191,7 +191,7 @@ describe('kuyruk kilitlenmesi (B-10)', () => {
     expect(order).toEqual(['received']);
     expect(store.get().queue.map((op) => op.type)).toEqual(['tags', 'alias_remove']);
 
-    q.enqueue({ type: 'contact_add', channel: 'email', token: 'a@example.com', at: 4 });
+    q.enqueue({ type: 'contact_add', channel: 'email', token: 'a@pushizo.com', at: 4 });
     expect(await q.flush()).toBe(true);
     expect(order).toEqual(['received', 'contact_add', 'tags', 'alias:old']);
     expect(q.size).toBe(0);
@@ -208,7 +208,7 @@ describe('kuyruk kilitlenmesi (B-10)', () => {
       },
       logger,
     );
-    q.enqueue({ type: 'contact_add', channel: 'email', token: 'a@example.com', at: 1 });
+    q.enqueue({ type: 'contact_add', channel: 'email', token: 'a@pushizo.com', at: 1 });
     q.enqueue({ type: 'received', deliveryId: 'dlv_1', at: 2 });
     expect(await q.flush()).toBe(false);
     expect(seen).toEqual([]);
@@ -223,7 +223,7 @@ describe('kuyruk kilitlenmesi (B-10)', () => {
     await tick();
     // Kullanıcı yok: tag kuyrukta bekler (atılmaz).
     expect(stored().queue.map((op) => op.type)).toEqual(['tags']);
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(hs.pendingOperations).toBe(0));
     const writes = api.calls.filter(
       (c) => (c.method === 'POST' && c.path === '/subscriptions') || c.method === 'PATCH',

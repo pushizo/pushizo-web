@@ -52,12 +52,12 @@ function message(patch: Partial<InAppMessage> = {}): InAppMessage {
 
 describe('e-posta/SMS normalizasyonu', () => {
   it('e-posta kırpılır ve küçük harfe çevrilir; geçersiz adres null', () => {
-    expect(normalizeEmail('  Ayşe.Kaya@Example.COM ')).toBe('ayşe.kaya@example.com');
+    expect(normalizeEmail('  Ayşe.Kaya@Pushizo.COM ')).toBe('ayşe.kaya@pushizo.com');
     expect(normalizeEmail('a@b.co')).toBe('a@b.co');
-    expect(normalizeEmail('eksik-at.example.com')).toBeNull();
+    expect(normalizeEmail('eksik-at.pushizo.com')).toBeNull();
     expect(normalizeEmail('a@b')).toBeNull();
-    expect(normalizeEmail('a b@example.com')).toBeNull();
-    expect(normalizeEmail(`${'a'.repeat(320)}@example.com`)).toBeNull();
+    expect(normalizeEmail('a b@pushizo.com')).toBeNull();
+    expect(normalizeEmail(`${'a'.repeat(320)}@pushizo.com`)).toBeNull();
   });
 
   it('telefon E.164 biçimine getirilir (boşluk, tire, parantez, nokta, 00 öneki)', () => {
@@ -274,11 +274,11 @@ describe('in-app sıklık ve öncelik', () => {
 
 describe('in-app güvenli değerler', () => {
   it('URL, deeplink ve renk doğrulaması', () => {
-    expect(safeHttpUrl('https://example.com/a?b=1')).toBe('https://example.com/a?b=1');
+    expect(safeHttpUrl('https://pushizo.com/a?b=1')).toBe('https://pushizo.com/a?b=1');
     expect(safeHttpUrl('javascript:alert(1)')).toBeNull();
     expect(safeHttpUrl('not a url')).toBeNull();
     expect(safeDeeplink('myapp://cart')).toBe('myapp://cart');
-    expect(safeDeeplink('https://example.com')).toBe('https://example.com');
+    expect(safeDeeplink('https://pushizo.com')).toBe('https://pushizo.com');
     expect(safeDeeplink('javascript://%0aalert(1)')).toBeNull();
     expect(safeDeeplink('data://text/html,x')).toBeNull();
     expect(safeDeeplink('cart')).toBeNull();

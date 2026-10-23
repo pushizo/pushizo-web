@@ -283,11 +283,11 @@ describe('sohbet widget\'ı', () => {
     expect(root.textContent).toContain('Mesai dışındayız.');
     const email = root.querySelector<HTMLInputElement>('input[type="email"]')!;
     const text = root.querySelector<HTMLTextAreaElement>('.form textarea')!;
-    email.value = 'ziyaretci@example.com';
+    email.value = 'ziyaretci@pushizo.com';
     text.value = 'Yarın arayın lütfen';
     root.querySelector<HTMLFormElement>('.form')!.requestSubmit();
     await vi.waitFor(() => expect(server.calls.some((x) => x.url.endsWith('/chat/offline'))).toBe(true));
-    expect(server.calls.find((x) => x.url.endsWith('/chat/offline'))!.body).toMatchObject({ email: 'ziyaretci@example.com', text: 'Yarın arayın lütfen' });
+    expect(server.calls.find((x) => x.url.endsWith('/chat/offline'))!.body).toMatchObject({ email: 'ziyaretci@pushizo.com', text: 'Yarın arayın lütfen' });
     await vi.waitFor(() => expect(root.textContent).toContain('Teşekkürler'));
     handle.destroy();
   });

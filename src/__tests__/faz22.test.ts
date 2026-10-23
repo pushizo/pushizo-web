@@ -72,12 +72,12 @@ describe('reklam kişiselleştirme rızası', () => {
     const hs = createSdk();
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
     await expect(hs.User.getConsents()).rejects.toThrow(/abonelik gerekli/);
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(hs.pendingOperations).toBe(0));
 
     hs.User.setAdsPersonalizationConsent(true);
     await vi.waitFor(() => expect(api.find('PUT', '/preferences')).toHaveLength(1));
-    const hash = await digest('a@example.com');
+    const hash = await digest('a@pushizo.com');
     expect(api.find('PUT', '/preferences')[0]!.body).toEqual({ subscription_id: 'sub_mail', token_hash: hash, preferences: [{ category: 'ads_personalization', opted_in: true }] });
     expect(await hs.User.getConsents()).toEqual([{ purpose: 'ads_personalization', granted: true, source: 'sdk', updatedAt: '2026-10-20T10:00:00.000Z' }]);
     expect((await hs.User.getPreferences()).consents[0]!.granted).toBe(true);

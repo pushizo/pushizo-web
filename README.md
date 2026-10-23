@@ -13,17 +13,6 @@
 
 **Pushizo Web SDK** — Web push permission and subscription (VAPID), email and SMS subscriptions, users, tags and aliases, events, in-app messages, notification inbox, user preferences and the service worker. The API surface is compatible with eski sağlayıcı v5.
 
-> **Status:** The script tag is served by the Pushizo API today; the npm package is being published.<br>
-> **Durum:** Script etiketi bugün Pushizo API'sinden sunulur; npm paketinin yayını hazırlanıyor.
-
-**Install from GitHub until then · O zamana kadar GitHub'dan kurulum:**
-
-```bash
-npm install --allow-remote=root https://github.com/pushizo/pushizo-web/releases/download/v0.1.0/pushizo-web-0.1.0.tgz
-```
-
-**After publication · Yayından sonra:**
-
 ```html
 <script src="https://api.pushizo.com/sdk-web/PushizoSDK.js" async></script>
 <script>
@@ -51,18 +40,18 @@ Ayrıntılı kullanım kılavuzu: [docs.pushizo.com/docs/sdk/web](https://docs.p
 ## Kurulum
 
 ```html
-<script src="https://api.example.com/sdk-web/PushizoSDK.js" async></script>
+<script src="https://api.pushizo.com/sdk-web/PushizoSDK.js" async></script>
 <script>
   window.PushizoDeferred = window.PushizoDeferred || [];
   PushizoDeferred.push(async (Pushizo) => {
-    await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
+    await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.pushizo.com' });
   });
 </script>
 ```
 
 ```ts
 import Pushizo from '@pushizo/web';
-await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
+await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.pushizo.com' });
 ```
 
 CommonJS (eski paketleyiciler, Jest): paket `require` koşulunda `dist/cjs/index.cjs` ve CommonJS tür tanımlarını sunar.

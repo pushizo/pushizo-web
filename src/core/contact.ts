@@ -10,7 +10,7 @@ export class ContactValidationError extends Error {
   constructor(readonly channel: ContactChannel) {
     super(
       channel === 'email'
-        ? 'Geçersiz e-posta adresi (ör. ad@ornek.com).'
+        ? 'Geçersiz e-posta adresi (ör. ad@pushizo.com).'
         : 'Geçersiz telefon numarası: uluslararası E.164 biçimi gerekli (ör. +905321234567).',
     );
     this.name = 'ContactValidationError';
