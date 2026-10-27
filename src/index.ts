@@ -16,6 +16,7 @@ export type {
   ChatWidgetOptions,
 } from './core/chat.js';
 export { ContactValidationError, normalizeEmail, normalizePhone } from './core/contact.js';
+export { ampWebPushConfig, ampWebPushElement } from './amp.js';
 
 /** Tek paylaşılan örnek (ESM kullanımı: `import Pushizo from '@pushizo/web'`). */
 export const Pushizo: PushizoSdk = createSdk();
