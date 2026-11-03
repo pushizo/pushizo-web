@@ -30,6 +30,7 @@ import {
   deleteSubscription,
   fetchPreferences,
   ownershipProof,
+  fetchPlacement,
   postInAppEvent,
   preferencesFromApi,
   putPreferences,
@@ -50,6 +51,9 @@ import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
 import { ChatClient, loadChatWidget, type ChatEvents, type ChatWidgetHandle, type ChatWidgetOptions } from './core/chat.js';
 import { newFlagSubject, parseFeatureFlags } from './core/feature-flags.js';
+import { renderPlacement } from './browser/placement-render.js';
+import { safeDeeplink, safeHttpUrl } from './core/in-app-logic.js';
+import type { InAppMessage } from './core/types.js';
 import { locationRefreshDue } from './core/location.js';
 import { Logger } from './core/logger.js';
 import { OfflineQueue } from './core/queue.js';
@@ -95,6 +99,8 @@ type Listener<T> = (event: T) => void;
 /** Pushizo Web SDK ana sınıfı (eski sağlayıcı v5 yüzeyiyle uyumlu). */
 /** Değişiklikten haberdar olmak için gözlemci türü. */
 type FeatureFlagListener = () => void;
+
+const PLACEMENT_KEY = /^[a-z][a-z0-9_.-]{0,63}$/;
 
 export class PushizoSdk {
   readonly version = SDK_VERSION;
@@ -706,6 +712,22 @@ export class PushizoSdk {
         return;
       }
     }
+  }
+
+  // --- Gömülü yerleşimler (ADR-0068) ---
+
+  private reportPlacement(message: InAppMessage, eventType: 'impression' | 'click' | 'dismiss', buttonId?: string): void {
+    const subscriptionId = this.store?.get().subscriptionId;
+    if (!subscriptionId) return;
+    this.enqueue({
+      type: 'in_app_event',
+      messageId: message.id,
+      subscriptionId,
+      eventType,
+      at: Date.now(),
+      ...(buttonId ? { buttonId } : {}),
+      ...(message.variant_id ? { variantId: message.variant_id } : {}),
+    });
   }
 
   // --- Özellik bayrakları (ADR-0066) ---
@@ -1557,6 +1579,55 @@ export class PushizoSdk {
    * en sık 5 dakikada bir push aboneliğine yazılır; izin yoksa veya gizlilik onayı verilmemişse gönderilmez. İlk konum
    * sunucuda KVKK açık rıza kaydı sayılır; `setShared(false)` konumu ve rıza kaydını hemen sildirir.
    */
+  /** Gömülü yerleşimler: uygulamanın ayırdığı alana içerik (ADR-0068). */
+  readonly Placements = {
+    /** Alanın içeriği. Abonelik yoksa veya gizlilik onayı bekleniyorsa boş döner. */
+    list: async (key: string, options?: { limit?: number }): Promise<InAppMessage[]> => {
+      if (!PLACEMENT_KEY.test(key)) throw new Error('Pushizo.Placements: geçersiz yerleşim anahtarı.');
+      this.assertReady();
+      const state = this.store!.get();
+      if (!state.subscriptionId || this.consentPending()) return [];
+      const res = await fetchPlacement(this.api!, key, state.subscriptionId, this.ownershipHashOf(state.subscriptionId), options?.limit ?? 1);
+      return res.data;
+    },
+    /** İçeriği öğeye çizer, gösterimi ve etkileşimi bildirir. Önceki çizim silinir. */
+    render: async (key: string, element: Element, options?: { limit?: number }): Promise<{ count: number; remove: () => void }> => {
+      const messages = await this.Placements.list(key, options);
+      element.querySelectorAll(':scope > [data-hs-placement-message]').forEach((node) => node.remove());
+      const handles = messages.map((message) => {
+        const handle = renderPlacement(message, element, {
+          language: this.language,
+          onButton: (button) => {
+            this.reportPlacement(message, 'click', button.id);
+            const action = button.action;
+            if (action.type === 'url') {
+              const safe = safeHttpUrl(action.url);
+              if (safe) window.open(safe, '_blank', 'noopener,noreferrer');
+            } else if (action.type === 'deeplink') {
+              const safe = safeDeeplink(action.url);
+              if (safe) window.location.assign(safe);
+            } else if (action.type === 'tags' && action.tags) {
+              this.enqueue({ type: 'tags', tags: action.tags, at: Date.now() });
+            } else if (action.type === 'dismiss') {
+              handle.remove();
+            }
+          },
+          onDismiss: () => {
+            this.reportPlacement(message, 'dismiss');
+            handle.remove();
+          },
+        });
+        this.reportPlacement(message, 'impression');
+        return handle;
+      });
+      return { count: handles.length, remove: () => handles.forEach((h) => h.remove()) };
+    },
+    /** Kendi çizdiğiniz içerik için: gösterim, tıklama ve kapatma bildirimi. */
+    reportImpression: (message: InAppMessage): void => this.reportPlacement(message, 'impression'),
+    reportClick: (message: InAppMessage, buttonId: string): void => this.reportPlacement(message, 'click', buttonId),
+    reportDismiss: (message: InAppMessage): void => this.reportPlacement(message, 'dismiss'),
+  };
+
   /** Özellik bayrakları: değerler oturum başında yenilenir ve cihazda saklanır (ADR-0066). */
   readonly FeatureFlags = {
     refresh: (): Promise<void> => this.refreshFeatureFlags(),

@@ -214,6 +214,11 @@ export function fetchInAppMessages(
   );
 }
 
+/** Gömülü yerleşim içeriği (ADR-0068). `supports` boştur: HTML ve carousel yerleşimde çizilmez. */
+export function fetchPlacement(api: SdkApi, key: string, subscriptionId: string, tokenHash: string | null | undefined, limit: number): Promise<SdkInAppList> {
+  return api.request<SdkInAppList>('GET', `/placements/${enc(key)}${queryString({ subscription_id: subscriptionId, ...ownershipProof(tokenHash), supports: '', limit: String(limit) })}`);
+}
+
 /** In-app gösterim / tıklama / kapatma olayı (`click` için `button_id` zorunlu; A/B için `variant_id`). */
 export function postInAppEvent(
   api: SdkApi,
