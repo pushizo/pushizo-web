@@ -308,6 +308,10 @@ export interface PersistedState {
   contactPromptDismissedAt: number | null;
   contactPromptDismissCount: number;
   /** `Location.setShared`: konum paylaşımı açık mı (kalıcı; varsayılan kapalı). */
+  /** Son alınan özellik bayrakları (ADR-0066). */
+  featureFlags: Record<string, { enabled: boolean; value: unknown }> | null;
+  /** Abonelik yokken kovanın hesaplandığı kalıcı rastgele kimlik. */
+  flagSubject: string | null;
   locationShared: boolean;
   /** Son konum gönderiminin kuyruğa yazıldığı an (epoch ms); 5 dk aralık için. */
   locationSentAt: number | null;

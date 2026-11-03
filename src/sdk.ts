@@ -49,6 +49,7 @@ import { newEventId } from './core/event-id.js';
 import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
 import { ChatClient, loadChatWidget, type ChatEvents, type ChatWidgetHandle, type ChatWidgetOptions } from './core/chat.js';
+import { newFlagSubject, parseFeatureFlags } from './core/feature-flags.js';
 import { locationRefreshDue } from './core/location.js';
 import { Logger } from './core/logger.js';
 import { OfflineQueue } from './core/queue.js';
@@ -92,6 +93,9 @@ const SDK_VERSION = typeof __HS_SDK_VERSION__ === 'string' ? __HS_SDK_VERSION__ 
 type Listener<T> = (event: T) => void;
 
 /** Pushizo Web SDK ana sınıfı (eski sağlayıcı v5 yüzeyiyle uyumlu). */
+/** Değişiklikten haberdar olmak için gözlemci türü. */
+type FeatureFlagListener = () => void;
+
 export class PushizoSdk {
   readonly version = SDK_VERSION;
   private readonly logger = new Logger();
@@ -107,6 +111,7 @@ export class PushizoSdk {
   private initPromise: Promise<void> | null = null;
   private language = 'en';
   private readonly clickListeners = new Set<Listener<NotificationClickEvent>>();
+  private readonly featureFlagListeners = new Set<FeatureFlagListener>();
   private readonly foregroundListeners = new Set<Listener<ForegroundLifecycleEvent>>();
   private readonly subscriptionObservers = new Set<Listener<PushSubscriptionState>>();
   private readonly permissionObservers = new Set<Listener<PermissionChangeEvent>>();
@@ -312,6 +317,7 @@ export class PushizoSdk {
       () => {
         this.enqueue({ type: 'session_start', at: Date.now() });
         this.inApp.onSessionStart();
+        void this.refreshFeatureFlags();
       },
       (duration) => {
         this.inApp.onSessionEnd();
@@ -699,6 +705,33 @@ export class PushizoSdk {
         if (op.eventType === 'impression') this.inApp.acknowledgeImpression(op.messageId);
         return;
       }
+    }
+  }
+
+  // --- Özellik bayrakları (ADR-0066) ---
+
+  /** Değerleri sunucudan alır. Hata son değerleri korur; gizlilik onayı beklenirken istek gönderilmez. */
+  private async refreshFeatureFlags(): Promise<void> {
+    const store = this.store;
+    const api = this.api;
+    if (!store || !api || !this.started || this.consentPending()) return;
+    const state = store.get();
+    let subject = state.flagSubject;
+    if (!subject) {
+      subject = newFlagSubject();
+      store.update({ flagSubject: subject });
+    }
+    const subscriptionId = state.subscriptionId;
+    const body = subscriptionId
+      ? { subscription_id: subscriptionId, ...ownershipProof(this.ownershipHashOf(subscriptionId), state.identityHash) }
+      : { subject };
+    try {
+      const flags = parseFeatureFlags(await api.request('POST', '/feature-flags/evaluate', body));
+      if (!flags) return;
+      store.update({ featureFlags: flags });
+      for (const listener of this.featureFlagListeners) listener();
+    } catch (err) {
+      this.logger.debug('özellik bayrakları alınamadı', err);
     }
   }
 
@@ -1524,6 +1557,22 @@ export class PushizoSdk {
    * en sık 5 dakikada bir push aboneliğine yazılır; izin yoksa veya gizlilik onayı verilmemişse gönderilmez. İlk konum
    * sunucuda KVKK açık rıza kaydı sayılır; `setShared(false)` konumu ve rıza kaydını hemen sildirir.
    */
+  /** Özellik bayrakları: değerler oturum başında yenilenir ve cihazda saklanır (ADR-0066). */
+  readonly FeatureFlags = {
+    refresh: (): Promise<void> => this.refreshFeatureFlags(),
+    /** Bayrak bu kullanıcı için açık mı; değer henüz yoksa `defaultValue`. */
+    isEnabled: (key: string, defaultValue = false): boolean => this.store?.get().featureFlags?.[key]?.enabled ?? defaultValue,
+    /** Bayrağın değeri (açıksa açık, kapalıysa kapalı değer); değer yoksa `defaultValue`. */
+    getValue: <T = unknown>(key: string, defaultValue?: T): T | undefined => {
+      const flag = this.store?.get().featureFlags?.[key];
+      return flag && flag.value !== undefined && flag.value !== null ? (flag.value as T) : defaultValue;
+    },
+    addObserver: (listener: () => void): (() => void) => {
+      this.featureFlagListeners.add(listener);
+      return () => this.featureFlagListeners.delete(listener);
+    },
+  };
+
   readonly Location = {
     /** Paylaşımı açar/kapatır (kalıcı). Açılırken izin varsa konum hemen gönderilir; izin için `requestPermission`. */
     setShared: (shared: boolean): void => {
