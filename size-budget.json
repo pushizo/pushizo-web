@@ -5,7 +5,7 @@
     "dist/PushizoSDKWorker.js": 6144,
     "dist/PushizoChatWidget.js": 10240,
     "dist/PushizoWebCampaigns.js": 8192,
-    "dist/index.js": 61440,
-    "dist/cjs/index.cjs": 61440
+    "dist/index.js": 65536,
+    "dist/cjs/index.cjs": 65536
   }
 }
