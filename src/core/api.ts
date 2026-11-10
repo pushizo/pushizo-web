@@ -368,6 +368,34 @@ export function archiveInboxItem(api: SdkApi, auth: InboxAuth, itemId: string): 
   return api.request<void>('DELETE', `/users/${enc(auth.userId)}/inbox/${enc(itemId)}${query}`);
 }
 
+/** İçerik kartı (ADR-0082) — `GET /users/{id}/cards` öğesi. */
+export interface SdkContentCard {
+  id: string;
+  message_id: string | null;
+  type: 'classic' | 'captioned_image' | 'image_only';
+  title: string | null;
+  body: string | null;
+  url: string | null;
+  image_url: string | null;
+  button_text: string | null;
+  data: Record<string, string>;
+  pinned: boolean;
+  priority: number;
+  viewed: boolean;
+  clicked: boolean;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export function fetchContentCards(api: SdkApi, auth: InboxAuth, limit?: number): Promise<{ data: SdkContentCard[]; unviewed_count: number }> {
+  const query = queryString({ subscription_id: auth.subscriptionId, ...ownershipProof(auth.tokenHash, auth.identityHash), limit });
+  return api.request('GET', `/users/${enc(auth.userId)}/cards${query}`);
+}
+
+export function sendContentCardEvent(api: SdkApi, auth: InboxAuth, cardId: string, event: 'impression' | 'click' | 'dismiss'): Promise<SdkContentCard> {
+  return api.request<SdkContentCard>('POST', `/users/${enc(auth.userId)}/cards/${enc(cardId)}/${event}`, inboxActionBody(auth));
+}
+
 /** `GET /in-app` yanıtı. */
 export interface SdkInAppList {
   language: string;

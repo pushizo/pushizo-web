@@ -49,6 +49,7 @@ import { ErrorReporter } from './core/errors.js';
 import { newEventId } from './core/event-id.js';
 import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
+import { contentCardEvent, listContentCards } from './core/content-cards.js';
 import { ChatClient, loadChatWidget, type ChatEvents, type ChatWidgetHandle, type ChatWidgetOptions } from './core/chat.js';
 import { newFlagSubject, parseFeatureFlags } from './core/feature-flags.js';
 import { renderPlacement } from './browser/placement-render.js';
@@ -1814,6 +1815,40 @@ export class PushizoSdk {
     },
     addObserver: (cb: Listener<InboxChangeEvent>): (() => void) => this.inbox.addObserver(cb),
     removeObserver: (cb: Listener<InboxChangeEvent>): void => this.inbox.removeObserver(cb),
+  };
+
+  /** Kart uçları için bağlam: kutu ile aynı kanıt kuralı (ADR-0016). */
+  private cardContext(): { api: SdkApi; auth: InboxAuth } {
+    this.assertReady();
+    const api = this.api;
+    if (!api) throw new Error('Pushizo.init önce çağrılmalı.');
+    const auth = this.inboxAuth();
+    if (!auth)
+      throw new Error('Pushizo.ContentCards: kullanıcı veya abonelik yok. Önce bildirim aboneliği oluşturun, login olun ya da User.addEmail/addSms kullanın.');
+    return { api, auth };
+  }
+
+  /**
+   * İçerik kartları (ADR-0082): kalıcı kart akışı (`content_card` mesajları); kartlar bildirim kutusunda görünmez.
+   * Gösterimde `logImpression`, tıklamada `logClick`, kapatmada `dismiss`.
+   */
+  readonly ContentCards = {
+    list: async (limit?: number) => {
+      const { api, auth } = this.cardContext();
+      return listContentCards(api, auth, limit);
+    },
+    logImpression: async (cardId: string) => {
+      const { api, auth } = this.cardContext();
+      return contentCardEvent(api, auth, cardId, 'impression');
+    },
+    logClick: async (cardId: string) => {
+      const { api, auth } = this.cardContext();
+      return contentCardEvent(api, auth, cardId, 'click');
+    },
+    dismiss: async (cardId: string) => {
+      const { api, auth } = this.cardContext();
+      return contentCardEvent(api, auth, cardId, 'dismiss');
+    },
   };
 
   private enqueueContact(

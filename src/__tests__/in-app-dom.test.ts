@@ -283,6 +283,13 @@ function fakeApi(messages: InAppMessage[]) {
     if (/^POST \/users\/[^/]+\/inbox\/[^/]+\/read$/.test(route))
       return json(200, { ...inboxItem(path.split('/')[4]!, true) });
     if (/^DELETE \/users\/[^/]+\/inbox\/[^/]+$/.test(route)) return json(200, { ok: true });
+    if (/^GET \/users\/[^/]+\/cards$/.test(route))
+      return json(200, {
+        unviewed_count: 1,
+        data: [{ id: 'crd_1', message_id: 'msg_1', type: 'captioned_image', title: 'Kart', body: null, url: null, image_url: 'https://cdn/x.png', button_text: 'İncele', data: {}, pinned: true, priority: 70, viewed: false, clicked: false, expires_at: null, created_at: '2026-11-10T10:00:00.000Z' }],
+      });
+    if (/^POST \/users\/[^/]+\/cards\/[^/]+\/(impression|click|dismiss)$/.test(route))
+      return json(200, { id: 'crd_1', message_id: null, type: 'classic', title: null, body: null, url: null, image_url: null, button_text: null, data: {}, pinned: false, priority: 0, viewed: true, clicked: true, expires_at: null, created_at: '2026-11-10T10:00:00.000Z' });
     if (route === 'POST /errors') return json(200, { accepted: 0 });
     return json(404, { error: { code: 'HS_NOT_FOUND', message: route } });
   });
@@ -506,6 +513,16 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(api.find('POST', '/users/usr_known/inbox/ibx_1/read')[0]!.body).toEqual(proof);
     expect(api.find('POST', '/users/usr_known/inbox/read-all')[0]!.body).toEqual(proof);
     expect(api.find('DELETE', '/users/usr_known/inbox/ibx_2')[0]!.query).toEqual(proof);
+    // İçerik kartları (ADR-0082): kutu ile aynı kanıt; akış ve olaylar ayrı uçlarda.
+    const feed = await hs.ContentCards.list(5);
+    expect(api.find('GET', '/users/usr_known/cards')[0]!.query).toEqual({ ...proof, limit: '5' });
+    expect(feed.cards[0]).toMatchObject({ id: 'crd_1', type: 'captioned_image', buttonText: 'İncele', pinned: true });
+    expect(feed.unviewedCount).toBe(1);
+    await hs.ContentCards.logClick('crd_1');
+    await hs.ContentCards.dismiss('crd_1');
+    expect(api.find('POST', '/users/usr_known/cards/crd_1/click')[0]!.body).toEqual(proof);
+    expect(api.find('POST', '/users/usr_known/cards/crd_1/dismiss')[0]!.body).toEqual(proof);
+    await expect(hs.ContentCards.logImpression('')).rejects.toThrow(/kart kimliği/);
     hs.destroy();
   });
 

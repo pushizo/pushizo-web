@@ -532,6 +532,30 @@ export interface InboxPage {
   hasMore: boolean;
 }
 
+/** İçerik kartı (ADR-0082); akış sabitlenmiş → öncelik → yeni sırasıyla gelir. */
+export interface ContentCard {
+  id: string;
+  messageId: string | null;
+  type: 'classic' | 'captioned_image' | 'image_only';
+  title: string | null;
+  body: string | null;
+  url: string | null;
+  imageUrl: string | null;
+  buttonText: string | null;
+  data: Record<string, string>;
+  pinned: boolean;
+  priority: number;
+  viewed: boolean;
+  clicked: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface ContentCardFeed {
+  cards: ContentCard[];
+  unviewedCount: number;
+}
+
 export interface InboxListOptions {
   /** 1-200 (varsayılan 50). */
   limit?: number;
