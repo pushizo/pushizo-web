@@ -22,6 +22,7 @@ import { currentPosition, geolocationPermission, isGeolocationSupported } from '
 import { renderCustomLinks } from './browser/custom-link.js';
 import { welcomeNotification } from './browser/welcome.js';
 import { InAppManager } from './browser/in-app.js';
+import { PersonalizationManager } from './browser/personalization.js';
 import { WebCampaignManager } from './browser/web-campaigns.js';
 import { SessionTracker } from './browser/session.js';
 import {
@@ -165,6 +166,16 @@ export class PushizoSdk {
     sendOutcome: (name, value) => this.Session.sendEvent(name, undefined, value),
     rendererUrl: () => `${this.apiSeed}/sdk-web/PushizoWebCampaigns.js`,
   });
+  /** Web sayfası kişiselleştirme (ADR-0083); görsel seçici ayrı pakette. */
+  private readonly personalization = new PersonalizationManager({
+    api: () => this.api,
+    appId: () => this.options?.appId ?? null,
+    logger: this.logger,
+    language: () => this.language,
+    subscriptionId: () => this.primarySubscriptionId(),
+    ownershipHash: (subscriptionId) => this.ownershipHashOf(subscriptionId),
+    editorUrl: () => `${this.apiSeed}/sdk-web/PushizoVisualEditor.js`,
+  });
   /** Canlı sohbet (ADR-0040): istemci ana pakette, widget arayüzü ayrı pakette tembel yüklenir. */
   private readonly chat = new ChatClient({
     api: () => this.api,
@@ -275,6 +286,8 @@ export class PushizoSdk {
     this.started = true;
     const options = this.options!;
     this.captureAttribution();
+    // Kişiselleştirme yapılandırmayı beklemez: önbellekteki deneyimler hemen uygulanır (titreme önleme).
+    if (options.webPersonalization !== false) this.personalization.start();
     // Yapılandırma önce alınır: service worker yolu/kapsamı ve istem ayarları dashboard'dan gelebilir.
     try {
       this.config = await this.api!.request<SdkConfig>('GET', '/config');
@@ -317,6 +330,7 @@ export class PushizoSdk {
     // In-app mesajlar oturum başında listeyi alır; abonelik (push veya e-posta/SMS) yoksa beklemede kalır.
     this.inApp.start();
     if (options.webCampaigns !== false) void this.webCampaigns.start();
+    if (options.webPersonalization !== false) void this.personalization.load();
     this.identityKey = this.currentIdentityKey();
 
     // Oturum takibi
@@ -1037,6 +1051,7 @@ export class PushizoSdk {
     this.chat.onIdentityChanged();
     // Segment hedefli web kampanyaları abonelikli kimlikle yeniden değerlendirilir.
     if (this.started && this.options?.webCampaigns !== false) void this.webCampaigns.refresh();
+    if (this.started && this.options?.webPersonalization !== false) void this.personalization.refresh();
   }
 
   /** Kullanıcı kimliği; yoksa abonelik oluşturmayı dener, olmazsa yeniden denenebilir hata fırlatır. */
@@ -1715,8 +1730,9 @@ export class PushizoSdk {
         eventId: given && /^[A-Za-z0-9._:-]{8,64}$/.test(given) ? given : newEventId(),
         at: Date.now(),
       });
-      // Olay adı in-app `event` tetiklerini değerlendirir.
+      // Olay adı in-app `event` tetiklerini ve kişiselleştirme olay hedeflerini değerlendirir.
       this.inApp.onEvent(name);
+      this.personalization.onEvent(name);
     },
   };
 
@@ -1949,6 +1965,7 @@ export class PushizoSdk {
     this.session?.end();
     this.inApp.destroy();
     this.webCampaigns.destroy();
+    this.personalization.destroy();
   }
 }
 

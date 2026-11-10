@@ -187,6 +187,8 @@ export interface InitOptions {
   promptOptions?: PromptOptions;
   /** Web kampanyaları (pop-up / banner / slide-in, formlar, anketler; ADR-0039); varsayılan açık, `false` kapatır. */
   webCampaigns?: boolean;
+  /** Web sayfası içeriğini kişiselleştirme (ADR-0083); varsayılan açık, `false` kapatır. */
+  webPersonalization?: boolean;
   /** UTM ve reklam tıklama kimliği yakalama (birleşik atribüsyon, v3 Faz 23); varsayılan açık. */
   attribution?: AttributionOptions;
 }
@@ -721,6 +723,39 @@ export interface WebCampaignList {
   data: WebCampaign[];
   forms: Record<string, WebForm>;
   surveys: Record<string, WebSurvey>;
+  language: string;
+}
+
+/** Kişiselleştirme değişikliği (ADR-0083): metinler istenen dildedir. */
+export interface PersonalizationChange {
+  selector: string;
+  action: 'text' | 'image' | 'link' | 'hide' | 'show';
+  text: string | null;
+  url: string | null;
+  alt: string | null;
+  new_tab: boolean;
+}
+
+export type PersonalizationGoal =
+  | { type: 'event'; event: string }
+  | { type: 'page'; url: { op: string; value: string } }
+  | { type: 'click'; selector: string };
+
+export interface WebPersonalization {
+  id: string;
+  priority: number;
+  conditions: WebCampaignConditions;
+  targeting: { visitor: 'all' | 'new' | 'returning'; devices: ('desktop' | 'mobile' | 'tablet')[] };
+  changes: PersonalizationChange[];
+  variants: { id: string; weight_percent: number; changes: PersonalizationChange[] }[];
+  winner_variant_id: string | null;
+  goal: PersonalizationGoal | null;
+  end_at: string | null;
+}
+
+export interface WebPersonalizationList {
+  data: WebPersonalization[];
+  editor_origins: string[];
   language: string;
 }
 

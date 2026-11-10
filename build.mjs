@@ -54,6 +54,18 @@ const targets = [
     define,
   },
   {
+    // Görsel seçici (ADR-0083 §4): yalnız panelden `?pushizo_editor=` ile açılan pencerede yüklenir.
+    entryPoints: ['src/visual-editor-entry.ts'],
+    outfile: 'dist/PushizoVisualEditor.js',
+    format: 'iife',
+    bundle: true,
+    minify: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
     // Canlı sohbet widget'ı (ADR-0040): ana SDK'dan ayrı, `Pushizo.Chat.show()` ile tembel yüklenir.
     entryPoints: ['src/chat-widget/entry-iife.ts'],
     outfile: 'dist/PushizoChatWidget.js',
