@@ -22,10 +22,11 @@ export function toContentCard(card: SdkContentCard): ContentCard {
   };
 }
 
-/** Kart akışı (`limit` 1-100). */
+/** Kart akışı (`limit` 1-100 tam sayı; aralık dışı tüm platformlarda olduğu gibi hata fırlatır). */
 export async function listContentCards(api: SdkApi, auth: InboxAuth, limit?: number): Promise<ContentCardFeed> {
-  const bounded = limit === undefined ? undefined : Math.min(100, Math.max(1, Math.floor(limit)));
-  const res = await fetchContentCards(api, auth, bounded);
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100))
+    throw new Error('Pushizo.ContentCards: limit 1-100 arasında tam sayı olmalı.');
+  const res = await fetchContentCards(api, auth, limit);
   return { cards: res.data.map(toContentCard), unviewedCount: res.unviewed_count };
 }
 

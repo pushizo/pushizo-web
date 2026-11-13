@@ -26,7 +26,15 @@ export function startVisualEditor(opts: { nonce: string; origins: string[] }): (
     if (!el || ignored(el)) return;
     e.preventDefault();
     e.stopPropagation();
-    const message = { type: 'pushizo:selector', nonce: opts.nonce, selector: buildSelector(el), tag: el.tagName.toLowerCase() };
+    const selector = buildSelector(el);
+    if (!selector) {
+      // Kesilmiş ya da tekil olmayan seçici yanlış öğeyi değiştirebilir: panele hiçbir şey gönderilmez.
+      bar.textContent = tr
+        ? 'Bu öğe için tekil bir seçici bulunamadı; öğeye bir kimlik (id) ya da data-pushizo özniteliği ekleyin.'
+        : 'No unique selector for this element; add an id or a data-pushizo attribute to it.';
+      return;
+    }
+    const message = { type: 'pushizo:selector', nonce: opts.nonce, selector, tag: el.tagName.toLowerCase() };
     // Mesaj yalnız eşleşen kökene ulaşır; diğer hedef kökenler tarayıcıda sessizce düşer.
     for (const origin of opts.origins) {
       try {

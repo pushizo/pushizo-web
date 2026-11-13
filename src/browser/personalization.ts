@@ -21,7 +21,8 @@ const ANTI_FLICKER_CLASS = 'pushizo-af';
 
 /** Değişiklikten önceki özgün değerler (geri alma için). */
 interface Original {
-  text?: string | null;
+  /** Metin değişikliğinden önceki alt düğümler (simge, iç öğe ve dinleyicileriyle birlikte geri yüklenir). */
+  nodes?: Node[];
   attrs?: Record<string, string | null>;
   display?: [string, string];
 }
@@ -110,6 +111,8 @@ export class PersonalizationManager {
   }
 
   private reveal(): void {
+    // SSR/DOM'suz ortamda `start` erken döner; gizleme sınıfı da yoktur.
+    if (typeof document === 'undefined') return;
     document.documentElement.classList.remove(ANTI_FLICKER_CLASS);
   }
 
@@ -122,10 +125,12 @@ export class PersonalizationManager {
     const session = readJson<{ utm?: Record<string, string> }>(() => window.sessionStorage, `pushizo:wc:${this.deps.appId() ?? ''}`);
     page.utm = session?.utm ?? {};
     this.active = eligiblePersonalizations(list, page, deviceKind(navigator.userAgent, window.innerWidth), Date.now()).map((p) => ({ p, ...resolvePersonalization(p, this.visitorId) }));
+    // Sayfa hedefi yalnız bu görüntülemeden önce maruz kalınmış deneyimde sayılır: hedef sayfaya doğrudan gelen
+    // ziyaretçi aynı anda maruz kalmış ve dönüşmüş sayılmaz (A/B oranı şişmez).
+    const exposedBefore = new Set(Object.keys(this.state.e));
     this.applyActive();
     for (const a of this.active) this.expose(a.p.id, a.variantId);
-    // Sayfa hedefi: daha önce maruz kalınmış deneyimin hedef sayfası.
-    for (const p of list) if (pageGoalMatches(p.goal, path, window.location.href)) this.convert(p.id);
+    for (const p of list) if (exposedBefore.has(p.id) && pageGoalMatches(p.goal, path, window.location.href)) this.convert(p.id);
     if (this.active.length && !this.observer && typeof MutationObserver !== 'undefined') {
       let queued = false;
       this.observer = new MutationObserver(() => {
@@ -163,7 +168,7 @@ export class PersonalizationManager {
 
   private remember(el: Element, o: Original): void {
     const cur = this.originals.get(el) ?? {};
-    if (o.text !== undefined && cur.text === undefined) cur.text = o.text;
+    if (o.nodes && !cur.nodes) cur.nodes = o.nodes;
     if (o.display && !cur.display) cur.display = o.display;
     for (const [k, v] of Object.entries(o.attrs ?? {})) if (!cur.attrs || !(k in cur.attrs)) cur.attrs = { ...cur.attrs, [k]: v };
     this.originals.set(el, cur);
@@ -180,7 +185,7 @@ export class PersonalizationManager {
   private change(el: Element, c: PersonalizationChange): void {
     const style = (el as HTMLElement).style as CSSStyleDeclaration | undefined;
     if (c.action === 'text' && c.text !== null) {
-      this.remember(el, { text: el.textContent });
+      this.remember(el, { nodes: Array.from(el.childNodes) });
       el.textContent = c.text;
     } else if (c.action === 'image' && el.tagName === 'IMG') {
       const url = safeUrl(c.url);
@@ -190,7 +195,7 @@ export class PersonalizationManager {
       if (!url) return;
       this.setAttrs(el, { href: url, ...(c.new_tab ? { target: '_blank', rel: 'noopener noreferrer' } : {}) });
       if (c.text) {
-        this.remember(el, { text: el.textContent });
+        this.remember(el, { nodes: Array.from(el.childNodes) });
         el.textContent = c.text;
       }
     } else if ((c.action === 'hide' || c.action === 'show') && style) {
@@ -207,7 +212,7 @@ export class PersonalizationManager {
     this.observer?.disconnect();
     this.observer = null;
     for (const [el, o] of this.originals) {
-      if (o.text !== undefined) el.textContent = o.text;
+      if (o.nodes) el.replaceChildren(...o.nodes);
       for (const [k, v] of Object.entries(o.attrs ?? {})) {
         if (v === null) el.removeAttribute(k);
         else el.setAttribute(k, v);

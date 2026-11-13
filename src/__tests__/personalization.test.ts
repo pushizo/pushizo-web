@@ -63,10 +63,30 @@ describe('seçici üretimi', () => {
     expect(buildSelector(document.querySelector('#hero')!)).toBe('#hero');
     expect(buildSelector(document.querySelector('button')!)).toBe('[data-testid="buy"]');
     const second = document.querySelectorAll('li')[1]!;
-    const sel = buildSelector(second);
+    const sel = buildSelector(second)!;
     expect(document.querySelectorAll(sel)).toHaveLength(1);
     expect(document.querySelector(sel)).toBe(second);
     expect(sel).not.toMatch(/[<{};]/);
+  });
+
+  it('sunucu kuralına aykırı test özniteliği kullanılmaz; seçici asla kesilmez', () => {
+    document.body.innerHTML = `<div class="wrap"><span data-testid="price;sale">9</span><span>8</span></div>`;
+    const span = document.querySelector('span')!;
+    const sel = buildSelector(span)!;
+    expect(sel).not.toContain('price;sale');
+    expect(document.querySelector(sel)).toBe(span);
+    // 300 karakterde tekil olmayan derin yol: kesik seçici yerine null döner.
+    const level = (inner: string) => `<div class="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb">${inner}</div><div class="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb">${inner}</div>`;
+    let html = '<p class="target">x</p><p class="target">y</p>';
+    for (let i = 0; i < 5; i++) html = level(html);
+    document.body.innerHTML = html;
+    const deep = document.querySelectorAll('p')[5]!;
+    const result = buildSelector(deep);
+    if (result !== null) {
+      expect(result.length).toBeLessThanOrEqual(300);
+      expect(document.querySelectorAll(result)).toHaveLength(1);
+      expect(document.querySelector(result)).toBe(deep);
+    } else expect(result).toBeNull();
   });
 });
 
@@ -186,5 +206,34 @@ describe('PersonalizationManager', () => {
     expect(conversions.map((c) => c.path).sort()).toEqual(['/web-personalizations/wpz_click/events', '/web-personalizations/wpz_ev/events']);
     expect((conversions.find((c) => c.path.includes('wpz_ev'))!.body as { variant_id: string }).variant_id).toBe(variant);
     m.destroy();
+  });
+
+  it('metin değişikliği geri alınınca özgün alt öğeler (simge, dinleyici) geri gelir', async () => {
+    document.body.innerHTML = '<button class="buy"><svg class="icon"></svg>Satın al</button>';
+    const icon = document.querySelector('svg.icon')!;
+    const m = manager(list([exp({ changes: [change({ selector: 'button.buy', text: 'Hemen al' })] })]));
+    m.start();
+    void m.load();
+    await vi.waitFor(() => expect(document.querySelector('button.buy')!.textContent).toBe('Hemen al'));
+    m.destroy();
+    const button = document.querySelector('button.buy')!;
+    expect(button.textContent).toBe('Satın al');
+    expect(button.querySelector('svg.icon')).toBe(icon);
+  });
+
+  it('sayfa hedefi: hedef sayfaya doğrudan gelen ziyaretçi aynı görüntülemede dönüşmüş sayılmaz', async () => {
+    const goalExp = () => list([exp({ id: 'wpz_page', goal: { type: 'page', url: { op: 'starts_with', value: '/' } } })]);
+    const m = manager(goalExp());
+    m.start();
+    void m.load();
+    await vi.waitFor(() => expect(calls.some((c) => (c.body as { type?: string } | undefined)?.type === 'impression')).toBe(true));
+    expect(calls.some((c) => (c.body as { type?: string } | undefined)?.type === 'conversion')).toBe(false);
+    m.destroy();
+    // Sonraki sayfa görüntülemesinde (maruz kalma önceden kayıtlı) hedef sayfa dönüşüm sayılır.
+    const m2 = manager(goalExp());
+    m2.start();
+    void m2.load();
+    await vi.waitFor(() => expect(calls.some((c) => (c.body as { type?: string } | undefined)?.type === 'conversion')).toBe(true));
+    m2.destroy();
   });
 });

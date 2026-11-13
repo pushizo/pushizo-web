@@ -16,18 +16,27 @@ export function uniqueIn(root: ParentNode, selector: string, el: Element): boole
   }
 }
 
-export function buildSelector(el: Element, root: ParentNode = document): string {
+/** Sunucunun seçici kuralına aykırı karakterler (`packages/shared` web-personalization: `<{};` ve kontrol). */
+// eslint-disable-next-line no-control-regex -- sunucu kuralıyla aynı kontrol karakteri aralığı bilinçli olarak reddedilir.
+const UNSAFE_VALUE = /["\\<{};\u0000-\u001f\u007f]/;
+export const SELECTOR_MAX = 300;
+
+/**
+ * Tıklanan öğe için sayfada tekil, en çok 300 karakterlik seçici; bulunamazsa `null`. Seçici asla kesilmez: kesilmiş
+ * bir yol başka (ör. ata) öğeyi hedefleyip `text` değişikliğinde alt ağacı silebilirdi.
+ */
+export function buildSelector(el: Element, root: ParentNode = document): string | null {
   if (el.id && /^[A-Za-z][\w-]*$/.test(el.id) && uniqueIn(root, `#${esc(el.id)}`, el)) return `#${esc(el.id)}`;
   for (const a of TEST_ATTRS) {
     const v = el.getAttribute(a);
-    if (v && v.length <= 80 && !/["\\]/.test(v)) {
+    if (v && v.length <= 80 && !UNSAFE_VALUE.test(v)) {
       const s = `[${a}="${v}"]`;
       if (uniqueIn(root, s, el)) return s;
     }
   }
   const parts: string[] = [];
   let node: Element | null = el;
-  for (let depth = 0; node && depth < 8 && node.tagName !== 'HTML'; depth++) {
+  for (let depth = 0; node && depth < 12 && node.tagName !== 'HTML'; depth++) {
     let part = node.tagName.toLowerCase();
     if (node.id && /^[A-Za-z][\w-]*$/.test(node.id)) part = `#${esc(node.id)}`;
     else {
@@ -39,11 +48,14 @@ export function buildSelector(el: Element, root: ParentNode = document): string 
         if (same.length > 1) part += `:nth-of-type(${same.indexOf(node) + 1})`;
       }
     }
+    const sel = [part, ...parts].join(' > ');
+    // Ata eklemek seçiciyi uzunluk sınırının dışına taşıyorsa tekil seçici yoktur.
+    if (sel.length > SELECTOR_MAX) return null;
     parts.unshift(part);
-    const sel = parts.join(' > ');
-    if (uniqueIn(root, sel, el) || sel.length > 260) return sel.slice(0, 300);
-    if (part.startsWith('#')) break;
+    if (uniqueIn(root, sel, el)) return sel;
+    // Ata kimliği yolun çapasıdır; onunla da tekil değilse daha yukarısı yardım etmez.
+    if (part.startsWith('#')) return null;
     node = node.parentElement;
   }
-  return parts.join(' > ').slice(0, 300);
+  return null;
 }

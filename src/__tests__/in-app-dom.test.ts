@@ -523,6 +523,8 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(api.find('POST', '/users/usr_known/cards/crd_1/click')[0]!.body).toEqual(proof);
     expect(api.find('POST', '/users/usr_known/cards/crd_1/dismiss')[0]!.body).toEqual(proof);
     await expect(hs.ContentCards.logImpression('')).rejects.toThrow(/kart kimliği/);
+    // Aralık dışı limit diğer platformlarla aynı şekilde hata verir (sunucuya `NaN` gitmez).
+    for (const bad of [0, 101, 2.5, Number.NaN]) await expect(hs.ContentCards.list(bad)).rejects.toThrow(/limit 1-100/);
     hs.destroy();
   });
 
