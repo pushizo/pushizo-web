@@ -7,18 +7,18 @@ import type { ChatClient, ChatConfig, ChatMessage, ChatWidgetHandle, ChatWidgetM
  * Enter gönderir, Shift+Enter satır ekler. Tema app ayarından (renk, konum, açık/koyu/otomatik).
  */
 
-const TEXT = {
+export const CHAT_TEXT = {
   tr: {
     open: 'Sohbeti aç',
     close: 'Sohbeti kapat',
-    unread: (n: number) => `${n} okunmamış mesaj`,
+    unread: 'Okunmamış mesaj: {n}',
     title: 'Bize yazın',
     online: 'Çevrimiçi',
     offline: 'Şu an çevrimdışıyız',
     placeholder: 'Mesajınızı yazın…',
     send: 'Gönder',
     attach: 'Dosya ekle',
-    typing: (name: string | null) => `${name ?? 'Temsilci'} yazıyor…`,
+    typing: '{name} yazıyor…',
     read: 'Okundu',
     delivered: 'İletildi',
     sent: 'Gönderildi',
@@ -37,7 +37,7 @@ const TEXT = {
     start: 'Sohbete başla',
     emailRequired: 'Sohbete başlamak için e-posta adresinizi girin.',
     invalidEmail: 'Geçerli bir e-posta adresi girin.',
-    tooLarge: (mb: number) => `Dosya en fazla ${mb} MB olabilir.`,
+    tooLarge: 'Dosya en fazla {mb} MB olabilir.',
     error: 'Bir sorun oluştu. Lütfen tekrar deneyin.',
     download: 'İndir',
     resolved: 'Konuşma çözüldü olarak işaretlendi. Yeni mesajla yeniden açabilirsiniz.',
@@ -45,14 +45,14 @@ const TEXT = {
   en: {
     open: 'Open chat',
     close: 'Close chat',
-    unread: (n: number) => `${n} unread message${n === 1 ? '' : 's'}`,
+    unread: 'Unread messages: {n}',
     title: 'Chat with us',
     online: 'Online',
     offline: 'We are offline',
     placeholder: 'Type your message…',
     send: 'Send',
     attach: 'Attach a file',
-    typing: (name: string | null) => `${name ?? 'Agent'} is typing…`,
+    typing: '{name} is typing…',
     read: 'Read',
     delivered: 'Delivered',
     sent: 'Sent',
@@ -71,13 +71,15 @@ const TEXT = {
     start: 'Start chat',
     emailRequired: 'Enter your email to start the chat.',
     invalidEmail: 'Enter a valid email address.',
-    tooLarge: (mb: number) => `Files can be up to ${mb} MB.`,
+    tooLarge: 'Files can be up to {mb} MB.',
     error: 'Something went wrong. Please try again.',
     download: 'Download',
     resolved: 'This conversation was marked as resolved. Send a new message to reopen it.',
   },
 };
-type Strings = (typeof TEXT)['tr'];
+type Strings = (typeof CHAT_TEXT)['tr'];
+/** `{ad}` yer tutucularını doldurur (ana SDK'daki `fmt` ile aynı; paket bağımsız kalsın diye kopya). */
+const fmt = (template: string, vars: Record<string, string | number>): string => template.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -146,8 +148,11 @@ const CLIP_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="
 /** Widget'ı bağlar; dönen tutamaç aç/kapat/kaldır sağlar. */
 export function mountChatWidget(client: ChatClient, options: ChatWidgetMountOptions): ChatWidgetHandle {
   const cfg = options.config;
-  const t: Strings = options.language.startsWith('tr') ? TEXT.tr : TEXT.en;
-  const host = el('div', { 'data-pushizo-chat': '' });
+  // tr/en dışındaki dillerde metinler SDK'nın yüklediği katalogdan gelir (ADR-0084); eksik anahtar İngilizceye düşer.
+  const base: Strings = options.language.startsWith('tr') ? CHAT_TEXT.tr : CHAT_TEXT.en;
+  const t: Strings = { ...base };
+  for (const k of Object.keys(base) as (keyof Strings)[]) if (typeof options.strings?.[k] === 'string') t[k] = options.strings[k]!;
+  const host = el('div', { 'data-pushizo-chat': '', dir: /^ar(-|$)/i.test(options.language) ? 'rtl' : 'ltr' });
   (options.container ?? document.body).appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
   const style = el('style');
@@ -265,7 +270,7 @@ export function mountChatWidget(client: ChatClient, options: ChatWidgetMountOpti
   const renderBadge = (n: number) => {
     badge.hidden = n <= 0 || opened;
     badge.textContent = n > 99 ? '99+' : String(n);
-    launcher.setAttribute('aria-label', n > 0 ? `${t.open} (${t.unread(n)})` : t.open);
+    launcher.setAttribute('aria-label', n > 0 ? `${t.open} (${fmt(t.unread, { n })})` : t.open);
   };
 
   // ---------------------------------------------------------------- çevrimdışı ve e-posta formları
@@ -365,7 +370,7 @@ export function mountChatWidget(client: ChatClient, options: ChatWidgetMountOpti
     fileInput.value = '';
     if (!file) return;
     if (file.size > cfg.attachments.max_bytes) {
-      showError(t.tooLarge(Math.round(cfg.attachments.max_bytes / 1024 / 1024)));
+      showError(fmt(t.tooLarge, { mb: Math.round(cfg.attachments.max_bytes / 1024 / 1024) }));
       return;
     }
     void client.sendFile(file, file.name, input.value.trim()).catch(() => showError(t.error));
@@ -422,7 +427,7 @@ export function mountChatWidget(client: ChatClient, options: ChatWidgetMountOpti
     }),
     client.on('unread', (n) => renderBadge(n)),
     client.on('typing', (d) => {
-      typingLine.textContent = d.typing ? t.typing(d.name) : '';
+      typingLine.textContent = d.typing ? fmt(t.typing, { name: d.name ?? t.agent }) : '';
     }),
     client.on('conversation', () => renderLog()),
   );

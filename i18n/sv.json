@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "Vill du aktivera aviseringar?",
+    "message": "Få viktiga uppdateringar och erbjudanden direkt.",
+    "accept": "Tillåt",
+    "cancel": "Inte nu",
+    "categoriesTitle": "Vilka ämnen vill du få aviseringar om?",
+    "subscribed": "Du prenumererar på aviseringar",
+    "unsubscribed": "Prenumerera på aviseringar",
+    "collectTitle": "Vill du hålla dig uppdaterad?",
+    "collectMessage": "Få erbjudanden och nyheter skickade till dig.",
+    "collectAccept": "Registrera",
+    "emailLabel": "E-postadress",
+    "smsLabel": "Telefonnummer",
+    "invalidEmail": "Ange en giltig e-postadress (t.ex. name@pushizo.com).",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "Ange telefonnumret i internationellt format (t.ex. +14155550100).",
+    "locationTitle": "Dela din plats",
+    "locationMessage": "Vi använder din ungefärliga plats endast medan webbplatsen är öppen, för att skicka relevanta aviseringar i närheten. Du kan stänga av detta när som helst.",
+    "locationAccept": "Fortsätt"
+  },
+  "customLink": {
+    "subscribe": "Prenumerera på push-aviseringar",
+    "unsubscribe": "Avregistrera dig från push-aviseringar",
+    "explanation": "Få viktiga uppdateringar och erbjudanden direkt."
+  },
+  "welcome": {
+    "message": "Tack för att du prenumererar!"
+  },
+  "inApp": {
+    "close": "Stäng",
+    "message": "Meddelande",
+    "carousel": "Kort",
+    "previous": "Föregående kort",
+    "next": "Nästa kort",
+    "slide": "Kort {n} av {total}"
+  },
+  "campaign": {
+    "close": "Stäng",
+    "dialog": "Kampanj",
+    "required": "obligatoriskt",
+    "sending": "Skickar…",
+    "error": "Kontrollera de markerade fälten.",
+    "choose": "Välj",
+    "low": "Inte alls troligt",
+    "high": "Mycket troligt",
+    "policy": "Läs informationen"
+  },
+  "chat": {
+    "open": "Öppna chatten",
+    "close": "Stäng chatten",
+    "unread": "Olästa meddelanden: {n}",
+    "title": "Chatta med oss",
+    "online": "Online",
+    "offline": "Vi är offline",
+    "placeholder": "Skriv ditt meddelande…",
+    "send": "Skicka",
+    "attach": "Bifoga en fil",
+    "typing": "{name} skriver…",
+    "read": "Läst",
+    "delivered": "Levererat",
+    "sent": "Skickat",
+    "sending": "Skickar…",
+    "failed": "Inte skickat",
+    "retry": "Försök igen",
+    "bot": "Assistent",
+    "agent": "Kundtjänst",
+    "you": "Du",
+    "offlineDefault": "Vi är offline just nu. Lämna din e-postadress så återkommer vi till dig.",
+    "email": "Din e-postadress",
+    "name": "Ditt namn (valfritt)",
+    "message": "Ditt meddelande",
+    "leave": "Lämna ett meddelande",
+    "thanks": "Tack! Vi har tagit emot ditt meddelande och svarar via e-post.",
+    "start": "Starta chatten",
+    "emailRequired": "Ange din e-postadress för att starta chatten.",
+    "invalidEmail": "Ange en giltig e-postadress.",
+    "tooLarge": "Filer får vara högst {mb} MB.",
+    "error": "Något gick fel. Försök igen.",
+    "download": "Ladda ned",
+    "resolved": "Den här konversationen har markerats som löst. Skicka ett nytt meddelande för att öppna den igen."
+  }
+}

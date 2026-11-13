@@ -1,9 +1,6 @@
+import { sdkStrings } from '../core/strings.js';
 import type { WelcomeNotificationOptions } from '../core/types.js';
 
-const DEFAULT_MESSAGE = {
-  tr: 'Abone olduğunuz için teşekkürler!',
-  en: 'Thanks for subscribing!',
-};
 
 /** Karşılama bildirimini ayırt eden etiket (aynı anda yalnızca bir tane görünür). */
 export const WELCOME_TAG = 'hs-welcome';
@@ -21,7 +18,7 @@ export function welcomeNotification(
 ): { title: string; options: NotificationOptions } | null {
   if (options?.disable) return null;
   const message =
-    options?.message ?? (language.toLowerCase().startsWith('tr') ? DEFAULT_MESSAGE.tr : DEFAULT_MESSAGE.en);
+    options?.message ?? sdkStrings(language).welcome.message;
   const url = options?.url && /^https?:\/\//i.test(options.url) ? options.url : `${origin}/`;
   return {
     title: options?.title || pageTitle || new URL(origin).host,

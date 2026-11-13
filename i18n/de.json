@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "Benachrichtigungen aktivieren?",
+    "message": "Erhalten Sie wichtige Neuigkeiten und Angebote sofort.",
+    "accept": "Erlauben",
+    "cancel": "Nicht jetzt",
+    "categoriesTitle": "Zu welchen Themen möchten Sie benachrichtigt werden?",
+    "subscribed": "Sie haben Benachrichtigungen abonniert",
+    "unsubscribed": "Benachrichtigungen abonnieren",
+    "collectTitle": "Auf dem Laufenden bleiben?",
+    "collectMessage": "Wir senden Ihnen Angebote und Neuigkeiten direkt zu.",
+    "collectAccept": "Anmelden",
+    "emailLabel": "E-Mail-Adresse",
+    "smsLabel": "Telefonnummer",
+    "invalidEmail": "Geben Sie eine gültige E-Mail-Adresse ein (z. B. name@pushizo.com).",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "Geben Sie die Telefonnummer im internationalen Format ein (z. B. +14155550100).",
+    "locationTitle": "Standort teilen",
+    "locationMessage": "Wir verwenden Ihren ungefähren Standort nur, solange die Website geöffnet ist, um Ihnen relevante Benachrichtigungen aus Ihrer Nähe zu senden. Sie können dies jederzeit deaktivieren.",
+    "locationAccept": "Weiter"
+  },
+  "customLink": {
+    "subscribe": "Push-Benachrichtigungen abonnieren",
+    "unsubscribe": "Push-Benachrichtigungen abbestellen",
+    "explanation": "Erhalten Sie wichtige Neuigkeiten und Angebote sofort."
+  },
+  "welcome": {
+    "message": "Vielen Dank für Ihr Abonnement!"
+  },
+  "inApp": {
+    "close": "Schließen",
+    "message": "Nachricht",
+    "carousel": "Karten",
+    "previous": "Vorherige Karte",
+    "next": "Nächste Karte",
+    "slide": "Karte {n} von {total}"
+  },
+  "campaign": {
+    "close": "Schließen",
+    "dialog": "Kampagne",
+    "required": "erforderlich",
+    "sending": "Wird gesendet…",
+    "error": "Bitte prüfen Sie die markierten Felder.",
+    "choose": "Auswählen",
+    "low": "Überhaupt nicht wahrscheinlich",
+    "high": "Äußerst wahrscheinlich",
+    "policy": "Hinweis lesen"
+  },
+  "chat": {
+    "open": "Chat öffnen",
+    "close": "Chat schließen",
+    "unread": "Ungelesene Nachrichten: {n}",
+    "title": "Chatten Sie mit uns",
+    "online": "Online",
+    "offline": "Wir sind offline",
+    "placeholder": "Nachricht eingeben…",
+    "send": "Senden",
+    "attach": "Datei anhängen",
+    "typing": "{name} schreibt…",
+    "read": "Gelesen",
+    "delivered": "Zugestellt",
+    "sent": "Gesendet",
+    "sending": "Wird gesendet…",
+    "failed": "Nicht gesendet",
+    "retry": "Erneut versuchen",
+    "bot": "Assistent",
+    "agent": "Mitarbeiter",
+    "you": "Sie",
+    "offlineDefault": "Wir sind gerade offline. Hinterlassen Sie Ihre E-Mail-Adresse, und wir melden uns bei Ihnen.",
+    "email": "Ihre E-Mail-Adresse",
+    "name": "Ihr Name (optional)",
+    "message": "Ihre Nachricht",
+    "leave": "Nachricht hinterlassen",
+    "thanks": "Vielen Dank! Wir haben Ihre Nachricht erhalten und antworten Ihnen per E-Mail.",
+    "start": "Chat starten",
+    "emailRequired": "Geben Sie Ihre E-Mail-Adresse ein, um den Chat zu starten.",
+    "invalidEmail": "Geben Sie eine gültige E-Mail-Adresse ein.",
+    "tooLarge": "Dateien dürfen höchstens {mb} MB groß sein.",
+    "error": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+    "download": "Herunterladen",
+    "resolved": "Diese Unterhaltung wurde als gelöst markiert. Senden Sie eine neue Nachricht, um sie wieder zu öffnen."
+  }
+}

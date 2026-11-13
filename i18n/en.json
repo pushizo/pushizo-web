@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "Enable notifications?",
+    "message": "Get important updates and offers instantly.",
+    "accept": "Allow",
+    "cancel": "Not now",
+    "categoriesTitle": "Which topics would you like to hear about?",
+    "subscribed": "You are subscribed to notifications",
+    "unsubscribed": "Subscribe to notifications",
+    "collectTitle": "Stay in the loop?",
+    "collectMessage": "Get offers and updates delivered to you.",
+    "collectAccept": "Sign up",
+    "emailLabel": "Email address",
+    "smsLabel": "Phone number",
+    "invalidEmail": "Enter a valid email address (e.g. name@pushizo.com).",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "Enter the phone in international format (e.g. +14155550100).",
+    "locationTitle": "Share your location",
+    "locationMessage": "We use your approximate location only while the site is open, to send you relevant nearby notifications. You can turn this off at any time.",
+    "locationAccept": "Continue"
+  },
+  "customLink": {
+    "subscribe": "Subscribe to push notifications",
+    "unsubscribe": "Unsubscribe from push notifications",
+    "explanation": "Get important updates and offers instantly."
+  },
+  "welcome": {
+    "message": "Thanks for subscribing!"
+  },
+  "inApp": {
+    "close": "Close",
+    "message": "Message",
+    "carousel": "Cards",
+    "previous": "Previous card",
+    "next": "Next card",
+    "slide": "Card {n} of {total}"
+  },
+  "campaign": {
+    "close": "Close",
+    "dialog": "Campaign",
+    "required": "required",
+    "sending": "Sending…",
+    "error": "Please check the highlighted fields.",
+    "choose": "Choose",
+    "low": "Not at all likely",
+    "high": "Extremely likely",
+    "policy": "Read the notice"
+  },
+  "chat": {
+    "open": "Open chat",
+    "close": "Close chat",
+    "unread": "Unread messages: {n}",
+    "title": "Chat with us",
+    "online": "Online",
+    "offline": "We are offline",
+    "placeholder": "Type your message…",
+    "send": "Send",
+    "attach": "Attach a file",
+    "typing": "{name} is typing…",
+    "read": "Read",
+    "delivered": "Delivered",
+    "sent": "Sent",
+    "sending": "Sending…",
+    "failed": "Not sent",
+    "retry": "Retry",
+    "bot": "Assistant",
+    "agent": "Agent",
+    "you": "You",
+    "offlineDefault": "We're offline right now. Leave your email and we'll get back to you.",
+    "email": "Your email",
+    "name": "Your name (optional)",
+    "message": "Your message",
+    "leave": "Leave a message",
+    "thanks": "Thanks! We received your message and will reply by email.",
+    "start": "Start chat",
+    "emailRequired": "Enter your email to start the chat.",
+    "invalidEmail": "Enter a valid email address.",
+    "tooLarge": "Files can be up to {mb} MB.",
+    "error": "Something went wrong. Please try again.",
+    "download": "Download",
+    "resolved": "This conversation was marked as resolved. Send a new message to reopen it."
+  }
+}

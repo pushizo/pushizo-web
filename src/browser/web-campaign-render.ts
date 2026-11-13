@@ -18,6 +18,8 @@ export interface SubmitOutcome {
 
 export interface WebCampaignRenderOptions {
   language: string;
+  /** tr/en dışındaki dilin metinleri (SDK yüklediği katalogdan aktarır); eksik anahtar paketin İngilizcesine düşer. */
+  strings?: Record<string, string>;
   form?: WebForm | null;
   survey?: WebSurvey | null;
   onButton: (b: ButtonBlock) => void;
@@ -33,7 +35,7 @@ export interface RenderedWebCampaign {
   close: () => void;
 }
 
-const T = {
+export const CAMPAIGN_TEXT = {
   tr: { close: 'Kapat', dialog: 'Kampanya', required: 'zorunlu', sending: 'Gönderiliyor…', error: 'Lütfen işaretli alanları kontrol edin.', choose: 'Seçin', low: 'Hiç olası değil', high: 'Çok olası', policy: 'Metni oku' },
   en: { close: 'Close', dialog: 'Campaign', required: 'required', sending: 'Sending…', error: 'Please check the highlighted fields.', choose: 'Choose', low: 'Not at all likely', high: 'Extremely likely', policy: 'Read the notice' },
 };
@@ -103,10 +105,14 @@ function applyStyle(doc: Document, root: ShadowRoot): void {
 
 export function renderWebCampaign(display: WebCampaignDisplay, o: WebCampaignRenderOptions): RenderedWebCampaign {
   const doc = o.doc ?? document;
-  const t = o.language.toLowerCase().startsWith('tr') ? T.tr : T.en;
+  const base = o.language.toLowerCase().startsWith('tr') ? CAMPAIGN_TEXT.tr : CAMPAIGN_TEXT.en;
+  const t: typeof base = { ...base };
+  for (const k of Object.keys(base) as (keyof typeof base)[]) if (typeof o.strings?.[k] === 'string') t[k] = o.strings[k]!;
   const uid = `hs-wc-${++seq}`;
   const blocking = display.layout === 'popup' || display.layout === 'fullscreen';
   const host = el(doc, 'div');
+  // Yazım yönü (ADR-0084); ayrı paket olduğu için ana SDK tablosu yerine dil kodundan.
+  host.setAttribute('dir', /^ar(-|$)/i.test(o.language) ? 'rtl' : 'ltr');
   host.id = uid;
   host.setAttribute('data-hs-web-campaign', display.layout);
   const root = host.attachShadow({ mode: 'open' });
@@ -232,7 +238,7 @@ export function renderWebCampaign(display: WebCampaignDisplay, o: WebCampaignRen
   };
 }
 
-type Texts = (typeof T)['tr'];
+type Texts = (typeof CAMPAIGN_TEXT)['tr'];
 
 /** Ortak form iskeleti: canlı durum bölgesi, gönderim düğmesi, hataların alanlara bağlanması. */
 function shell(doc: Document, uid: string, label: string, submitLabel: string) {

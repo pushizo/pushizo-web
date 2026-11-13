@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "Bildirişlər aktiv edilsin?",
+    "message": "Vacib yenilikləri və təklifləri dərhal alın.",
+    "accept": "İcazə ver",
+    "cancel": "İndi yox",
+    "categoriesTitle": "Hansı mövzular barədə məlumat almaq istəyirsiniz?",
+    "subscribed": "Bildirişlərə abunəsiniz",
+    "unsubscribed": "Bildirişlərə abunə ol",
+    "collectTitle": "Xəbərdar olmaq istəyirsiniz?",
+    "collectMessage": "Təkliflər və yeniliklər birbaşa sizə çatdırılsın.",
+    "collectAccept": "Qeydiyyatdan keç",
+    "emailLabel": "E-poçt ünvanı",
+    "smsLabel": "Telefon nömrəsi",
+    "invalidEmail": "Düzgün e-poçt ünvanı daxil edin (məs. name@pushizo.com).",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "Telefon nömrəsini beynəlxalq formatda daxil edin (məs. +14155550100).",
+    "locationTitle": "Məkanınızı paylaşın",
+    "locationMessage": "Təxmini məkanınızdan yalnız sayt açıq olduqda, sizə yaxınlıqdakı uyğun bildirişləri göndərmək üçün istifadə edirik. Bunu istənilən vaxt söndürə bilərsiniz.",
+    "locationAccept": "Davam et"
+  },
+  "customLink": {
+    "subscribe": "Push bildirişlərinə abunə ol",
+    "unsubscribe": "Push bildirişlərinə abunəliyi ləğv et",
+    "explanation": "Vacib yenilikləri və təklifləri dərhal alın."
+  },
+  "welcome": {
+    "message": "Abunə olduğunuz üçün təşəkkür edirik!"
+  },
+  "inApp": {
+    "close": "Bağla",
+    "message": "Mesaj",
+    "carousel": "Kartlar",
+    "previous": "Əvvəlki kart",
+    "next": "Növbəti kart",
+    "slide": "Kart {n} / {total}"
+  },
+  "campaign": {
+    "close": "Bağla",
+    "dialog": "Kampaniya",
+    "required": "məcburi",
+    "sending": "Göndərilir…",
+    "error": "Zəhmət olmasa, qeyd olunmuş sahələri yoxlayın.",
+    "choose": "Seçin",
+    "low": "Heç ehtimal yoxdur",
+    "high": "Çox yüksək ehtimal",
+    "policy": "Mətni oxuyun"
+  },
+  "chat": {
+    "open": "Söhbəti aç",
+    "close": "Söhbəti bağla",
+    "unread": "Oxunmamış mesajlar: {n}",
+    "title": "Bizimlə yazışın",
+    "online": "Onlayn",
+    "offline": "Hazırda onlayn deyilik",
+    "placeholder": "Mesajınızı yazın…",
+    "send": "Göndər",
+    "attach": "Fayl əlavə et",
+    "typing": "{name} yazır…",
+    "read": "Oxundu",
+    "delivered": "Çatdırıldı",
+    "sent": "Göndərildi",
+    "sending": "Göndərilir…",
+    "failed": "Göndərilmədi",
+    "retry": "Yenidən cəhd et",
+    "bot": "Assistent",
+    "agent": "Nümayəndə",
+    "you": "Siz",
+    "offlineDefault": "Hazırda onlayn deyilik. E-poçt ünvanınızı qeyd edin, sizinlə əlaqə saxlayacağıq.",
+    "email": "E-poçt ünvanınız",
+    "name": "Adınız (istəyə bağlı)",
+    "message": "Mesajınız",
+    "leave": "Mesaj qoy",
+    "thanks": "Təşəkkür edirik! Mesajınızı aldıq və e-poçt vasitəsilə cavab verəcəyik.",
+    "start": "Söhbətə başla",
+    "emailRequired": "Söhbətə başlamaq üçün e-poçt ünvanınızı daxil edin.",
+    "invalidEmail": "Düzgün e-poçt ünvanı daxil edin.",
+    "tooLarge": "Faylın ölçüsü ən çox {mb} MB ola bilər.",
+    "error": "Xəta baş verdi. Zəhmət olmasa, yenidən cəhd edin.",
+    "download": "Endir",
+    "resolved": "Bu söhbət həll edilmiş kimi qeyd olunub. Yenidən açmaq üçün yeni mesaj göndərin."
+  }
+}

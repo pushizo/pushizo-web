@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "要开启通知吗？",
+    "message": "第一时间获取重要动态和优惠信息。",
+    "accept": "允许",
+    "cancel": "以后再说",
+    "categoriesTitle": "您希望接收哪些主题的通知？",
+    "subscribed": "您已订阅通知",
+    "unsubscribed": "订阅通知",
+    "collectTitle": "想及时了解最新消息吗？",
+    "collectMessage": "我们会将优惠和最新动态发送给您。",
+    "collectAccept": "注册",
+    "emailLabel": "电子邮件地址",
+    "smsLabel": "手机号码",
+    "invalidEmail": "请输入有效的电子邮件地址（例如 name@pushizo.com）。",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "请以国际格式输入手机号码（例如 +14155550100）。",
+    "locationTitle": "共享您的位置",
+    "locationMessage": "为了向您发送附近的相关通知，我们仅在网站打开期间使用您的大致位置。您可以随时关闭此功能。",
+    "locationAccept": "继续"
+  },
+  "customLink": {
+    "subscribe": "订阅推送通知",
+    "unsubscribe": "退订推送通知",
+    "explanation": "第一时间获取重要动态和优惠信息。"
+  },
+  "welcome": {
+    "message": "感谢您的订阅！"
+  },
+  "inApp": {
+    "close": "关闭",
+    "message": "消息",
+    "carousel": "卡片",
+    "previous": "上一张卡片",
+    "next": "下一张卡片",
+    "slide": "第 {n} 张卡片，共 {total} 张"
+  },
+  "campaign": {
+    "close": "关闭",
+    "dialog": "活动",
+    "required": "必填",
+    "sending": "正在发送…",
+    "error": "请检查标出的字段。",
+    "choose": "请选择",
+    "low": "完全不可能",
+    "high": "极有可能",
+    "policy": "查看说明"
+  },
+  "chat": {
+    "open": "打开聊天",
+    "close": "关闭聊天",
+    "unread": "未读消息：{n}",
+    "title": "在线咨询",
+    "online": "在线",
+    "offline": "我们目前不在线",
+    "placeholder": "输入消息…",
+    "send": "发送",
+    "attach": "添加附件",
+    "typing": "{name} 正在输入…",
+    "read": "已读",
+    "delivered": "已送达",
+    "sent": "已发送",
+    "sending": "正在发送…",
+    "failed": "未发送",
+    "retry": "重试",
+    "bot": "助手",
+    "agent": "客服",
+    "you": "您",
+    "offlineDefault": "我们目前不在线。请留下您的电子邮件，我们会尽快回复您。",
+    "email": "您的电子邮件",
+    "name": "您的姓名（选填）",
+    "message": "您的留言",
+    "leave": "留言",
+    "thanks": "谢谢！我们已收到您的留言，将通过电子邮件回复您。",
+    "start": "开始聊天",
+    "emailRequired": "请输入电子邮件以开始聊天。",
+    "invalidEmail": "请输入有效的电子邮件地址。",
+    "tooLarge": "文件大小不能超过 {mb} MB。",
+    "error": "出现问题，请重试。",
+    "download": "下载",
+    "resolved": "此对话已标记为已解决。发送新消息即可重新开启。"
+  }
+}

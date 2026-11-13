@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "通知を有効にしますか？",
+    "message": "重要なお知らせやお得な情報をすぐにお届けします。",
+    "accept": "許可",
+    "cancel": "後で",
+    "categoriesTitle": "どのトピックについて通知を受け取りますか？",
+    "subscribed": "通知を購読しています",
+    "unsubscribed": "通知を購読する",
+    "collectTitle": "最新情報を受け取りますか？",
+    "collectMessage": "お得な情報や最新情報をお届けします。",
+    "collectAccept": "登録",
+    "emailLabel": "メールアドレス",
+    "smsLabel": "電話番号",
+    "invalidEmail": "有効なメールアドレスを入力してください（例: name@pushizo.com）。",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "電話番号を国際形式で入力してください（例: +14155550100）。",
+    "locationTitle": "位置情報の共有",
+    "locationMessage": "お近くの関連する通知をお送りするため、サイトを開いている間のみおおよその位置情報を使用します。この設定はいつでもオフにできます。",
+    "locationAccept": "続行"
+  },
+  "customLink": {
+    "subscribe": "プッシュ通知を購読する",
+    "unsubscribe": "プッシュ通知の配信を停止する",
+    "explanation": "重要なお知らせやお得な情報をすぐにお届けします。"
+  },
+  "welcome": {
+    "message": "ご購読ありがとうございます！"
+  },
+  "inApp": {
+    "close": "閉じる",
+    "message": "メッセージ",
+    "carousel": "カード",
+    "previous": "前のカード",
+    "next": "次のカード",
+    "slide": "カード {n}/{total}"
+  },
+  "campaign": {
+    "close": "閉じる",
+    "dialog": "キャンペーン",
+    "required": "必須",
+    "sending": "送信中…",
+    "error": "強調表示された項目をご確認ください。",
+    "choose": "選択してください",
+    "low": "まったく可能性がない",
+    "high": "非常に可能性が高い",
+    "policy": "内容を確認する"
+  },
+  "chat": {
+    "open": "チャットを開く",
+    "close": "チャットを閉じる",
+    "unread": "未読メッセージ: {n}",
+    "title": "チャットでお問い合わせ",
+    "online": "オンライン",
+    "offline": "現在オフラインです",
+    "placeholder": "メッセージを入力…",
+    "send": "送信",
+    "attach": "ファイルを添付",
+    "typing": "{name}さんが入力中…",
+    "read": "既読",
+    "delivered": "配信済み",
+    "sent": "送信済み",
+    "sending": "送信中…",
+    "failed": "未送信",
+    "retry": "再試行",
+    "bot": "アシスタント",
+    "agent": "担当者",
+    "you": "あなた",
+    "offlineDefault": "ただいまオフラインです。メールアドレスをお知らせいただければ、折り返しご連絡いたします。",
+    "email": "メールアドレス",
+    "name": "お名前（任意）",
+    "message": "メッセージ",
+    "leave": "メッセージを残す",
+    "thanks": "ありがとうございます。メッセージを受け付けました。メールでご返信いたします。",
+    "start": "チャットを開始",
+    "emailRequired": "チャットを開始するにはメールアドレスを入力してください。",
+    "invalidEmail": "有効なメールアドレスを入力してください。",
+    "tooLarge": "ファイルは{mb} MBまでです。",
+    "error": "問題が発生しました。もう一度お試しください。",
+    "download": "ダウンロード",
+    "resolved": "この会話は解決済みになりました。新しいメッセージを送信すると再開されます。"
+  }
+}

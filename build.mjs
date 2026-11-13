@@ -1,6 +1,6 @@
 // Web SDK paketleme: ESM ve CommonJS kütüphane, IIFE (CDN/script etiketi) ve service worker bundle'ı.
 import { build, context } from 'esbuild';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 const watch = process.argv.includes('--watch');
@@ -111,5 +111,7 @@ if (watch) {
   for (const t of targets) await build(t);
   mkdirSync('dist/cjs', { recursive: true });
   writeFileSync('dist/cjs/package.json', JSON.stringify({ type: 'commonjs' }, null, 2) + '\n');
+  // Son kullanıcı metin katalogları (ADR-0084): API `/sdk-web/i18n/<dil>.json` olarak sunar, SDK tembel yükler.
+  cpSync('i18n', 'dist/i18n', { recursive: true });
   console.log('[sdk-web] dist hazır');
 }

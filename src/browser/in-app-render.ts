@@ -1,3 +1,4 @@
+import { fmt, sdkDirection, sdkStrings, type MainStrings } from '../core/strings.js';
 import type { HtmlBridgeAction } from '../core/html-bridge.js';
 import { safeColor, safeHttpUrl } from '../core/in-app-logic.js';
 import type { InAppBlock, InAppMessage } from '../core/types.js';
@@ -31,11 +32,7 @@ export interface RenderedInApp {
   close: () => void;
 }
 
-const TEXTS = {
-  tr: { close: 'Kapat', message: 'Mesaj', carousel: 'Kartlar', previous: 'Önceki kart', next: 'Sonraki kart', slide: (n: number, total: number) => `Kart ${n}/${total}` },
-  en: { close: 'Close', message: 'Message', carousel: 'Cards', previous: 'Previous card', next: 'Next card', slide: (n: number, total: number) => `Card ${n} of ${total}` },
-};
-type Texts = (typeof TEXTS)['tr'];
+type Texts = MainStrings['inApp'];
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input, select, textarea, iframe, [tabindex]:not([tabindex="-1"])';
@@ -107,12 +104,13 @@ export function renderInAppMessage(
   options: InAppRenderOptions,
 ): RenderedInApp {
   const doc = options.doc ?? document;
-  const t = options.language.toLowerCase().startsWith('tr') ? TEXTS.tr : TEXTS.en;
+  const t = sdkStrings(options.language).inApp;
   const { display } = message;
   const isBlocking = display.layout === 'modal' || display.layout === 'fullscreen';
   const uid = `hs-iam-${++sequence}`;
 
   const host = doc.createElement('div');
+  host.setAttribute('dir', sdkDirection(options.language));
   host.id = 'hs-in-app';
   host.setAttribute('data-hs-message-id', message.id);
   host.setAttribute('data-hs-layout', display.layout);
@@ -343,7 +341,7 @@ function renderCarousel(doc: Document, block: CarouselBlock, t: Texts, uid: stri
     slide.className = 'hs-slide';
     slide.setAttribute('role', 'group');
     slide.setAttribute('aria-roledescription', 'slide');
-    slide.setAttribute('aria-label', t.slide(i + 1, cards.length));
+    slide.setAttribute('aria-label', fmt(t.slide, { n: i + 1, total: cards.length }));
     slide.setAttribute('data-hs-card-id', card.id);
     const src = safeHttpUrl(card.image_url);
     if (src) {

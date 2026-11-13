@@ -1,3 +1,4 @@
+import { loadedSection } from '../core/strings.js';
 import { ApiError, queryString, type SdkApi } from '../core/api.js';
 import type { Logger } from '../core/logger.js';
 import type { WebCampaign, WebCampaignDisplay, WebCampaignEvent, WebCampaignList } from '../core/types.js';
@@ -276,6 +277,8 @@ export class WebCampaignManager {
     const lang = this.list.language;
     const view = renderWebCampaign(display, {
       language: lang,
+      // tr/en dışındaki dillerde metinler yüklenen katalogdan (ADR-0084); paket yoksa kendi İngilizcesine düşer.
+      strings: loadedSection(this.deps.language(), 'campaign'),
       form: display.form_id ? this.list.forms[display.form_id] : null,
       survey: display.survey_id ? this.list.surveys[display.survey_id] : null,
       onButton: (b) => this.onButton(c, variantId, b),

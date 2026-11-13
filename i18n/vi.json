@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "Bật thông báo?",
+    "message": "Nhận ngay các cập nhật và ưu đãi quan trọng.",
+    "accept": "Cho phép",
+    "cancel": "Để sau",
+    "categoriesTitle": "Bạn muốn nhận tin về những chủ đề nào?",
+    "subscribed": "Bạn đã đăng ký nhận thông báo",
+    "unsubscribed": "Đăng ký nhận thông báo",
+    "collectTitle": "Bạn muốn luôn nắm bắt tin mới?",
+    "collectMessage": "Nhận ưu đãi và tin cập nhật gửi trực tiếp đến bạn.",
+    "collectAccept": "Đăng ký",
+    "emailLabel": "Địa chỉ email",
+    "smsLabel": "Số điện thoại",
+    "invalidEmail": "Vui lòng nhập địa chỉ email hợp lệ (ví dụ: name@pushizo.com).",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "Vui lòng nhập số điện thoại theo định dạng quốc tế (ví dụ: +14155550100).",
+    "locationTitle": "Chia sẻ vị trí của bạn",
+    "locationMessage": "Chúng tôi chỉ sử dụng vị trí gần đúng của bạn khi trang web đang mở, để gửi cho bạn các thông báo phù hợp ở gần bạn. Bạn có thể tắt tính năng này bất cứ lúc nào.",
+    "locationAccept": "Tiếp tục"
+  },
+  "customLink": {
+    "subscribe": "Đăng ký nhận thông báo đẩy",
+    "unsubscribe": "Hủy đăng ký thông báo đẩy",
+    "explanation": "Nhận ngay các cập nhật và ưu đãi quan trọng."
+  },
+  "welcome": {
+    "message": "Cảm ơn bạn đã đăng ký!"
+  },
+  "inApp": {
+    "close": "Đóng",
+    "message": "Tin nhắn",
+    "carousel": "Thẻ",
+    "previous": "Thẻ trước",
+    "next": "Thẻ tiếp theo",
+    "slide": "Thẻ {n}/{total}"
+  },
+  "campaign": {
+    "close": "Đóng",
+    "dialog": "Chiến dịch",
+    "required": "bắt buộc",
+    "sending": "Đang gửi…",
+    "error": "Vui lòng kiểm tra các trường được đánh dấu.",
+    "choose": "Chọn",
+    "low": "Hoàn toàn không có khả năng",
+    "high": "Rất có khả năng",
+    "policy": "Đọc thông tin"
+  },
+  "chat": {
+    "open": "Mở trò chuyện",
+    "close": "Đóng trò chuyện",
+    "unread": "Tin nhắn chưa đọc: {n}",
+    "title": "Trò chuyện với chúng tôi",
+    "online": "Trực tuyến",
+    "offline": "Chúng tôi đang ngoại tuyến",
+    "placeholder": "Nhập tin nhắn của bạn…",
+    "send": "Gửi",
+    "attach": "Đính kèm tệp",
+    "typing": "{name} đang nhập…",
+    "read": "Đã xem",
+    "delivered": "Đã nhận",
+    "sent": "Đã gửi",
+    "sending": "Đang gửi…",
+    "failed": "Chưa gửi được",
+    "retry": "Thử lại",
+    "bot": "Trợ lý",
+    "agent": "Nhân viên hỗ trợ",
+    "you": "Bạn",
+    "offlineDefault": "Hiện chúng tôi đang ngoại tuyến. Vui lòng để lại email, chúng tôi sẽ liên hệ lại với bạn.",
+    "email": "Email của bạn",
+    "name": "Tên của bạn (không bắt buộc)",
+    "message": "Tin nhắn của bạn",
+    "leave": "Để lại tin nhắn",
+    "thanks": "Cảm ơn bạn! Chúng tôi đã nhận được tin nhắn và sẽ trả lời qua email.",
+    "start": "Bắt đầu trò chuyện",
+    "emailRequired": "Vui lòng nhập email để bắt đầu trò chuyện.",
+    "invalidEmail": "Vui lòng nhập địa chỉ email hợp lệ.",
+    "tooLarge": "Tệp có dung lượng tối đa {mb} MB.",
+    "error": "Đã xảy ra lỗi. Vui lòng thử lại.",
+    "download": "Tải xuống",
+    "resolved": "Cuộc trò chuyện này đã được đánh dấu là đã giải quyết. Hãy gửi tin nhắn mới để mở lại."
+  }
+}

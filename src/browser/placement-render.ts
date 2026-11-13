@@ -1,3 +1,4 @@
+import { sdkStrings } from '../core/strings.js';
 import { safeColor, safeHttpUrl } from '../core/in-app-logic.js';
 import type { InAppBlock, InAppMessage } from '../core/types.js';
 
@@ -94,7 +95,7 @@ export function renderPlacement(message: InAppMessage, target: Element, options:
     const close = doc.createElement('button');
     close.type = 'button';
     close.className = 'hs-close';
-    close.setAttribute('aria-label', options.language.toLowerCase().startsWith('tr') ? 'Kapat' : 'Close');
+    close.setAttribute('aria-label', sdkStrings(options.language).inApp.close);
     close.textContent = '×';
     close.addEventListener('click', () => options.onDismiss());
     card.appendChild(close);

@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "¿Desea activar las notificaciones?",
+    "message": "Reciba al instante novedades importantes y ofertas.",
+    "accept": "Permitir",
+    "cancel": "Ahora no",
+    "categoriesTitle": "¿Sobre qué temas desea recibir notificaciones?",
+    "subscribed": "Está suscrito a las notificaciones",
+    "unsubscribed": "Suscribirse a las notificaciones",
+    "collectTitle": "¿Quiere estar al día?",
+    "collectMessage": "Reciba ofertas y novedades directamente.",
+    "collectAccept": "Registrarse",
+    "emailLabel": "Correo electrónico",
+    "smsLabel": "Número de teléfono",
+    "invalidEmail": "Introduzca un correo electrónico válido (p. ej., name@pushizo.com).",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "Introduzca el teléfono en formato internacional (p. ej., +14155550100).",
+    "locationTitle": "Comparta su ubicación",
+    "locationMessage": "Usamos su ubicación aproximada solo mientras el sitio está abierto, para enviarle notificaciones relevantes cerca de usted. Puede desactivarlo en cualquier momento.",
+    "locationAccept": "Continuar"
+  },
+  "customLink": {
+    "subscribe": "Suscribirse a las notificaciones push",
+    "unsubscribe": "Darse de baja de las notificaciones push",
+    "explanation": "Reciba al instante novedades importantes y ofertas."
+  },
+  "welcome": {
+    "message": "¡Gracias por suscribirse!"
+  },
+  "inApp": {
+    "close": "Cerrar",
+    "message": "Mensaje",
+    "carousel": "Tarjetas",
+    "previous": "Tarjeta anterior",
+    "next": "Tarjeta siguiente",
+    "slide": "Tarjeta {n} de {total}"
+  },
+  "campaign": {
+    "close": "Cerrar",
+    "dialog": "Campaña",
+    "required": "obligatorio",
+    "sending": "Enviando…",
+    "error": "Revise los campos resaltados.",
+    "choose": "Seleccionar",
+    "low": "Nada probable",
+    "high": "Extremadamente probable",
+    "policy": "Leer el aviso"
+  },
+  "chat": {
+    "open": "Abrir chat",
+    "close": "Cerrar chat",
+    "unread": "Mensajes no leídos: {n}",
+    "title": "Chatee con nosotros",
+    "online": "En línea",
+    "offline": "Estamos desconectados",
+    "placeholder": "Escriba su mensaje…",
+    "send": "Enviar",
+    "attach": "Adjuntar un archivo",
+    "typing": "{name} está escribiendo…",
+    "read": "Leído",
+    "delivered": "Entregado",
+    "sent": "Enviado",
+    "sending": "Enviando…",
+    "failed": "No enviado",
+    "retry": "Reintentar",
+    "bot": "Asistente",
+    "agent": "Agente",
+    "you": "Tú",
+    "offlineDefault": "Ahora mismo estamos desconectados. Déjenos su correo electrónico y le responderemos.",
+    "email": "Su correo electrónico",
+    "name": "Su nombre (opcional)",
+    "message": "Su mensaje",
+    "leave": "Dejar un mensaje",
+    "thanks": "¡Gracias! Hemos recibido su mensaje y le responderemos por correo electrónico.",
+    "start": "Iniciar chat",
+    "emailRequired": "Introduzca su correo electrónico para iniciar el chat.",
+    "invalidEmail": "Introduzca un correo electrónico válido.",
+    "tooLarge": "Los archivos pueden tener hasta {mb} MB.",
+    "error": "Se ha producido un error. Inténtelo de nuevo.",
+    "download": "Descargar",
+    "resolved": "Esta conversación se marcó como resuelta. Envíe un mensaje nuevo para reabrirla."
+  }
+}

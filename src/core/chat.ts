@@ -633,6 +633,8 @@ export interface ChatWidgetHandle {
 export interface ChatWidgetMountOptions extends ChatWidgetOptions {
   config: ChatConfig;
   language: string;
+  /** tr/en dışındaki dilin metinleri (ADR-0084; SDK yüklediği katalogdan aktarır). */
+  strings?: Record<string, string>;
 }
 
 export interface ChatWidgetModule {

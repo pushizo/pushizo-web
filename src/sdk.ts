@@ -50,6 +50,7 @@ import { ErrorReporter } from './core/errors.js';
 import { newEventId } from './core/event-id.js';
 import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
+import { loadedSection, loadSdkStrings } from './core/strings.js';
 import { contentCardEvent, listContentCards } from './core/content-cards.js';
 import { ChatClient, loadChatWidget, type ChatEvents, type ChatWidgetHandle, type ChatWidgetOptions } from './core/chat.js';
 import { newFlagSubject, parseFeatureFlags } from './core/feature-flags.js';
@@ -207,6 +208,8 @@ export class PushizoSdk {
       options.language ?? (typeof navigator !== 'undefined' ? navigator.language : 'en');
     const seed = (options.apiUrl ?? inferApiUrl()).replace(/\/$/, '');
     this.apiSeed = seed;
+    // tr/en dışındaki dilin son kullanıcı metinleri arka planda yüklenir (ADR-0084); yüklenene kadar İngilizce.
+    if (typeof fetch !== 'undefined') void loadSdkStrings(seed, this.language);
     this.store = new StateStore(options.appId);
     const saved = this.store.get();
     // Daha önce öğrenilen bölgesel kök, aynı başlangıç kökü için kullanılır (ADR-0032 §4).
@@ -1382,6 +1385,7 @@ export class PushizoSdk {
     getTags: (): Record<string, string> => ({ ...(this.store?.get().tags ?? {}) }),
     setLanguage: (code: string): void => {
       this.language = code;
+      if (typeof fetch !== 'undefined') void loadSdkStrings(this.apiSeed, code);
       this.enqueue({ type: 'properties', properties: { language: code }, at: Date.now() });
     },
     setProperty: (key: string, value: unknown): void =>
@@ -1893,7 +1897,7 @@ export class PushizoSdk {
         this.logger.info('canlı sohbet widget\'ı app ayarında kapalı');
         return;
       }
-      const mountOptions = { ...options, config, language: this.language.split('-')[0] ?? 'en' };
+      const mountOptions = { ...options, config, language: this.language.split('-')[0] ?? 'en', strings: loadedSection(this.language, 'chat') };
       if (options.mount) this.chatWidget = options.mount(this.chat, mountOptions);
       else {
         const widget = await loadChatWidget(options.widgetUrl ?? `${this.apiSeed}/sdk-web/PushizoChatWidget.js`, options.nonce);

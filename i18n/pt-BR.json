@@ -1,0 +1,83 @@
+{
+  "prompt": {
+    "title": "Ativar notificações?",
+    "message": "Receba atualizações importantes e ofertas na hora.",
+    "accept": "Permitir",
+    "cancel": "Agora não",
+    "categoriesTitle": "Sobre quais assuntos você quer receber notificações?",
+    "subscribed": "Você está inscrito nas notificações",
+    "unsubscribed": "Inscrever-se nas notificações",
+    "collectTitle": "Quer ficar por dentro?",
+    "collectMessage": "Receba ofertas e novidades diretamente.",
+    "collectAccept": "Cadastrar-se",
+    "emailLabel": "Endereço de e-mail",
+    "smsLabel": "Número de telefone",
+    "invalidEmail": "Digite um endereço de e-mail válido (ex.: name@pushizo.com).",
+    "emailPlaceholder": "name@pushizo.com",
+    "invalidPhone": "Digite o telefone no formato internacional (ex.: +14155550100).",
+    "locationTitle": "Compartilhe sua localização",
+    "locationMessage": "Usamos sua localização aproximada apenas enquanto o site está aberto, para enviar notificações relevantes perto de você. Você pode desativar isso a qualquer momento.",
+    "locationAccept": "Continuar"
+  },
+  "customLink": {
+    "subscribe": "Inscrever-se nas notificações push",
+    "unsubscribe": "Cancelar inscrição nas notificações push",
+    "explanation": "Receba atualizações importantes e ofertas na hora."
+  },
+  "welcome": {
+    "message": "Obrigado por se inscrever!"
+  },
+  "inApp": {
+    "close": "Fechar",
+    "message": "Mensagem",
+    "carousel": "Cartões",
+    "previous": "Cartão anterior",
+    "next": "Próximo cartão",
+    "slide": "Cartão {n} de {total}"
+  },
+  "campaign": {
+    "close": "Fechar",
+    "dialog": "Campanha",
+    "required": "obrigatório",
+    "sending": "Enviando…",
+    "error": "Verifique os campos destacados.",
+    "choose": "Selecionar",
+    "low": "Nada provável",
+    "high": "Extremamente provável",
+    "policy": "Ler o aviso"
+  },
+  "chat": {
+    "open": "Abrir chat",
+    "close": "Fechar chat",
+    "unread": "Mensagens não lidas: {n}",
+    "title": "Fale conosco",
+    "online": "Online",
+    "offline": "Estamos offline",
+    "placeholder": "Digite sua mensagem…",
+    "send": "Enviar",
+    "attach": "Anexar um arquivo",
+    "typing": "{name} está digitando…",
+    "read": "Lido",
+    "delivered": "Entregue",
+    "sent": "Enviado",
+    "sending": "Enviando…",
+    "failed": "Não enviado",
+    "retry": "Tentar novamente",
+    "bot": "Assistente",
+    "agent": "Atendente",
+    "you": "Você",
+    "offlineDefault": "Estamos offline no momento. Deixe seu e-mail e entraremos em contato.",
+    "email": "Seu e-mail",
+    "name": "Seu nome (opcional)",
+    "message": "Sua mensagem",
+    "leave": "Deixar uma mensagem",
+    "thanks": "Obrigado! Recebemos sua mensagem e responderemos por e-mail.",
+    "start": "Iniciar chat",
+    "emailRequired": "Digite seu e-mail para iniciar o chat.",
+    "invalidEmail": "Digite um endereço de e-mail válido.",
+    "tooLarge": "Os arquivos podem ter até {mb} MB.",
+    "error": "Algo deu errado. Tente novamente.",
+    "download": "Baixar",
+    "resolved": "Esta conversa foi marcada como resolvida. Envie uma nova mensagem para reabri-la."
+  }
+}
