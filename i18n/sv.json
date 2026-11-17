@@ -98,5 +98,14 @@
     "disclaimer": "Genererat av AI utifrån webbplatsens innehåll; kan innehålla fel.",
     "error": "Sökningen misslyckades. Försök igen.",
     "keys": "Använd piltangenterna för att navigera, Enter för att öppna och Esc för att stänga."
+  },
+  "cards": {
+    "label": "Kort",
+    "loading": "Läser in…",
+    "empty": "Inga kort ännu",
+    "error": "Det gick inte att läsa in korten.",
+    "retry": "Försök igen",
+    "dismiss": "Stäng kortet",
+    "pinned": "Fastnålat"
   }
 }

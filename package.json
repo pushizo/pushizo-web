@@ -48,6 +48,10 @@
       "types": "./dist/search-widget/index.d.ts",
       "default": "./dist/search-widget.js"
     },
+    "./content-cards": {
+      "types": "./dist/content-cards/index.d.ts",
+      "default": "./dist/content-cards.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

@@ -1,13 +1,14 @@
 {
-  "$comment": "Web SDK paket boyutu bütçesi (gzip -9, bayt). `npm run size -w @pushizo/web` derlenmiş dist üzerinde denetler; CI (sdk.yml) aşımda başarısız olur. Bütçe artışı PR açıklamasında gerekçelendirilir. 2026-11-10: web kişiselleştirme (ADR-0083) ana pakette olmalı (titreme önleme), ana paket 40→42 KB, ESM/CJS 64→68 KB. 2026-11-17: site içi arama (ADR-0093) penceresi ayrı pakette (PushizoSearch.js, 6 KB); ana paket bütçesi değişmedi.",
+  "$comment": "Web SDK paket boyutu bütçesi (gzip -9, bayt). `npm run size -w @pushizo/web` derlenmiş dist üzerinde denetler; CI (sdk.yml) aşımda başarısız olur. Bütçe artışı PR açıklamasında gerekçelendirilir. 2026-11-10: web kişiselleştirme (ADR-0083) ana pakette olmalı (titreme önleme), ana paket 40→42 KB, ESM/CJS 64→68 KB. 2026-11-17: site içi arama (ADR-0093) penceresi ayrı pakette (PushizoSearch.js, 6 KB); ana paket bütçesi değişmedi. 2026-11-17: istemci SDK'ları API eşitliği (profille login, in-app özel çizim, sohbet/rozet/konum izni API'leri; Android/iOS karşılıkları) ana pakette olmalı: ESM/CJS 68→72 KB; CDN paketi (PushizoSDK.js) 42 KB bütçesinde kaldı. Hazır içerik kartı görünümü ayrı pakette (PushizoContentCards.js, 4 KB).",
   "files": {
     "dist/PushizoSDK.js": 43008,
     "dist/PushizoSDKWorker.js": 6144,
     "dist/PushizoChatWidget.js": 10240,
     "dist/PushizoSearch.js": 6144,
+    "dist/PushizoContentCards.js": 4096,
     "dist/PushizoWebCampaigns.js": 8192,
     "dist/PushizoVisualEditor.js": 4096,
-    "dist/index.js": 69632,
-    "dist/cjs/index.cjs": 69632
+    "dist/index.js": 73728,
+    "dist/cjs/index.cjs": 73728
   }
 }

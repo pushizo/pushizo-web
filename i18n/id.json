@@ -98,5 +98,14 @@
     "disclaimer": "Dibuat oleh AI dari konten situs; mungkin mengandung kesalahan.",
     "error": "Pencarian gagal. Silakan coba lagi.",
     "keys": "Gunakan tombol panah untuk berpindah, Enter untuk membuka, dan Esc untuk menutup."
+  },
+  "cards": {
+    "label": "Kartu",
+    "loading": "Memuat…",
+    "empty": "Belum ada kartu",
+    "error": "Kartu tidak dapat dimuat.",
+    "retry": "Coba lagi",
+    "dismiss": "Tutup kartu",
+    "pinned": "Disematkan"
   }
 }

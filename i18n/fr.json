@@ -98,5 +98,14 @@
     "disclaimer": "Généré par l’IA à partir du contenu du site ; peut contenir des erreurs.",
     "error": "La recherche a échoué. Veuillez réessayer.",
     "keys": "Utilisez les flèches pour naviguer, Entrée pour ouvrir et Échap pour fermer."
+  },
+  "cards": {
+    "label": "Cartes",
+    "loading": "Chargement…",
+    "empty": "Aucune carte pour le moment",
+    "error": "Impossible de charger les cartes.",
+    "retry": "Réessayer",
+    "dismiss": "Masquer la carte",
+    "pinned": "Épinglée"
   }
 }

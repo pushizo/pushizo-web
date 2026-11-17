@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CAMPAIGN_TEXT } from '../browser/web-campaign-render.js';
 import { CHAT_TEXT } from '../chat-widget/widget.js';
 import { SEARCH_TEXT } from '../search-widget/widget.js';
+import { CARDS_TEXT } from '../content-cards/widget.js';
 import { BUILTIN_STRINGS, SDK_LOCALES, fmt, loadSdkStrings, loadedSection, resetSdkStrings, resolveSdkLocale, sdkStrings } from '../core/strings.js';
 
 // Paket tsconfig'i Node tiplerini içermez; Vitest (Node) çalışma zamanında modülleri ve __dirname'i sağlar.
@@ -23,7 +24,7 @@ describe('web SDK metin kataloğu (ADR-0084)', () => {
   });
 
   it('koddaki tr/en metinleri kaynak kataloglarla birebir eşit', () => {
-    for (const l of ['tr', 'en'] as const) expect(read(l)).toEqual({ ...BUILTIN_STRINGS[l], campaign: CAMPAIGN_TEXT[l], chat: CHAT_TEXT[l], search: SEARCH_TEXT[l] });
+    for (const l of ['tr', 'en'] as const) expect(read(l)).toEqual({ ...BUILTIN_STRINGS[l], campaign: CAMPAIGN_TEXT[l], chat: CHAT_TEXT[l], search: SEARCH_TEXT[l], cards: CARDS_TEXT[l] });
   });
 
   it('22 dilin her biri: aynı bölüm/anahtar, aynı yer tutucular, boş değer yok', () => {

@@ -98,5 +98,14 @@
     "disclaimer": "Generat de AI pe baza conținutului site-ului; poate conține greșeli.",
     "error": "Căutarea a eșuat. Încercați din nou.",
     "keys": "Folosiți tastele săgeți pentru navigare, Enter pentru a deschide și Esc pentru a închide."
+  },
+  "cards": {
+    "label": "Carduri",
+    "loading": "Se încarcă…",
+    "empty": "Încă nu există carduri",
+    "error": "Cardurile nu au putut fi încărcate.",
+    "retry": "Reîncearcă",
+    "dismiss": "Închide cardul",
+    "pinned": "Fixat"
   }
 }

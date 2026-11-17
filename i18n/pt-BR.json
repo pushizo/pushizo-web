@@ -98,5 +98,14 @@
     "disclaimer": "Gerado por IA a partir do conteúdo do site; pode conter erros.",
     "error": "A busca falhou. Tente novamente.",
     "keys": "Use as setas para navegar, Enter para abrir e Esc para fechar."
+  },
+  "cards": {
+    "label": "Cartões",
+    "loading": "Carregando…",
+    "empty": "Nenhum cartão ainda",
+    "error": "Não foi possível carregar os cartões.",
+    "retry": "Tentar novamente",
+    "dismiss": "Dispensar cartão",
+    "pinned": "Fixado"
   }
 }

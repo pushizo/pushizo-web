@@ -553,6 +553,15 @@ export interface ContentCard {
   createdAt: string;
 }
 
+/** `login` ile birlikte ayarlanan profil (Android `HsUserProfile` / iOS `HSUserProfile` karşılığı). */
+export interface UserProfile {
+  email?: string;
+  /** Uluslararası biçimde telefon (ör. `+905321234567`). */
+  sms?: string;
+  tags?: Record<string, string>;
+  aliases?: Record<string, string>;
+}
+
 export interface ContentCardFeed {
   cards: ContentCard[];
   unviewedCount: number;

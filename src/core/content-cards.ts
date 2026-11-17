@@ -34,3 +34,69 @@ export async function contentCardEvent(api: SdkApi, auth: InboxAuth, cardId: str
   if (!cardId) throw new Error('Pushizo.ContentCards: kart kimliği gerekli.');
   return toContentCard(await sendContentCardEvent(api, auth, cardId, event));
 }
+
+/** Hazır kart görünümünün kullandığı veri kaynağı (`Pushizo.ContentCards` ile aynı imzalar). */
+export interface ContentCardsSource {
+  list: (limit?: number) => Promise<ContentCardFeed>;
+  logImpression: (cardId: string) => Promise<ContentCard>;
+  logClick: (cardId: string) => Promise<ContentCard>;
+  dismiss: (cardId: string) => Promise<ContentCard>;
+}
+
+export interface ContentCardsViewOptions {
+  /** Bir yüklemede istenen kart sayısı (1-100; varsayılan 50). */
+  limit?: number;
+  theme?: 'light' | 'dark' | 'auto';
+  /** Vurgu rengi (`#rrggbb`). */
+  color?: string;
+  /** Kart bağlantısı yeni sekmede açılsın. */
+  newTab?: boolean;
+  /** Kart tıklandığında; `true` dönerse SDK bağlantıyı açmaz (yönlendirmeyi site yapar). Tıklama her durumda kaydedilir. */
+  onCardClick?: (card: ContentCard) => boolean | void;
+  /** Akış her yüklendiğinde (rozet vb. için görülmemiş kart sayısıyla). */
+  onFeedLoaded?: (feed: ContentCardFeed) => void;
+  /** Görünüm betiğinin adresi (varsayılan `<api>/sdk-web/PushizoContentCards.js`). */
+  widgetUrl?: string;
+  /** CSP `nonce` değeri (betik etiketi için). */
+  nonce?: string;
+  /** Paketleyici kullanımı: `import { mountContentCards } from '@pushizo/web/content-cards'` (harici betik yüklenmez). */
+  mount?: ContentCardsModule['mount'];
+}
+
+export interface ContentCardsViewHandle {
+  /** Akışı yeniden yükler. */
+  refresh(): Promise<void>;
+  /** Görünümü kaldırır ve gözlemcileri temizler. */
+  destroy(): void;
+}
+
+export interface ContentCardsMountOptions extends ContentCardsViewOptions {
+  language: string;
+  dir: 'ltr' | 'rtl';
+  /** tr/en dışındaki dilin metinleri (ADR-0084; SDK yüklediği katalogdan aktarır). */
+  strings?: Record<string, string>;
+}
+
+export interface ContentCardsModule {
+  mount: (source: ContentCardsSource, target: Element, options: ContentCardsMountOptions) => ContentCardsViewHandle;
+}
+
+/** Görünüm betiğini tembel yükler (`window.PushizoContentCards`); aynı sayfada tek yükleme. */
+export function loadContentCardsWidget(url: string, nonce?: string): Promise<ContentCardsModule> {
+  const w = globalThis as unknown as { PushizoContentCards?: ContentCardsModule; __hsCardsLoad?: Promise<ContentCardsModule> };
+  if (w.PushizoContentCards) return Promise.resolve(w.PushizoContentCards);
+  return (w.__hsCardsLoad ??= new Promise<ContentCardsModule>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = url;
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    if (nonce) script.nonce = nonce;
+    const fail = () => {
+      w.__hsCardsLoad = undefined;
+      reject(new Error(`İçerik kartı paketi yüklenemedi: ${url}`));
+    };
+    script.onload = () => (w.PushizoContentCards ? resolve(w.PushizoContentCards) : fail());
+    script.onerror = fail;
+    document.head.appendChild(script);
+  }));
+}

@@ -98,5 +98,14 @@
     "disclaimer": "Door AI gegenereerd op basis van de content van de site; kan fouten bevatten.",
     "error": "Het zoeken is mislukt. Probeer het opnieuw.",
     "keys": "Gebruik de pijltjestoetsen om te navigeren, Enter om te openen en Esc om te sluiten."
+  },
+  "cards": {
+    "label": "Kaarten",
+    "loading": "Laden…",
+    "empty": "Nog geen kaarten",
+    "error": "De kaarten konden niet worden geladen.",
+    "retry": "Opnieuw proberen",
+    "dismiss": "Kaart verbergen",
+    "pinned": "Vastgezet"
   }
 }

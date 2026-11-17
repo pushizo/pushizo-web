@@ -98,5 +98,14 @@
     "disclaimer": "Yapay zekâ tarafından site içeriğinden oluşturuldu; hata içerebilir.",
     "error": "Arama yapılamadı. Lütfen tekrar deneyin.",
     "keys": "Gezinmek için ok tuşlarını, açmak için Enter tuşunu, kapatmak için Esc tuşunu kullanın."
+  },
+  "cards": {
+    "label": "Kartlar",
+    "loading": "Yükleniyor…",
+    "empty": "Henüz kart yok",
+    "error": "Kartlar yüklenemedi.",
+    "retry": "Tekrar dene",
+    "dismiss": "Kartı kapat",
+    "pinned": "Sabitlendi"
   }
 }

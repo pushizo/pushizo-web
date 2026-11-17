@@ -98,5 +98,14 @@
     "disclaimer": "Süni intellekt tərəfindən saytın məzmunu əsasında yaradılıb; səhvlər ola bilər.",
     "error": "Axtarış alınmadı. Zəhmət olmasa, yenidən cəhd edin.",
     "keys": "Hərəkət etmək üçün ox düymələrindən, açmaq üçün Enter, bağlamaq üçün Esc düyməsindən istifadə edin."
+  },
+  "cards": {
+    "label": "Kartlar",
+    "loading": "Yüklənir…",
+    "empty": "Hələ kart yoxdur",
+    "error": "Kartları yükləmək mümkün olmadı.",
+    "retry": "Yenidən cəhd et",
+    "dismiss": "Kartı gizlət",
+    "pinned": "Sabitlənib"
   }
 }

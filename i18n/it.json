@@ -98,5 +98,14 @@
     "disclaimer": "Generato dall’IA a partire dai contenuti del sito; può contenere errori.",
     "error": "Ricerca non riuscita. Riprovi.",
     "keys": "Usi i tasti freccia per spostarsi, Invio per aprire ed Esc per chiudere."
+  },
+  "cards": {
+    "label": "Schede",
+    "loading": "Caricamento…",
+    "empty": "Ancora nessuna scheda",
+    "error": "Impossibile caricare le schede.",
+    "retry": "Riprova",
+    "dismiss": "Ignora scheda",
+    "pinned": "Fissata"
   }
 }

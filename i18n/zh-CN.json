@@ -98,5 +98,14 @@
     "disclaimer": "由 AI 根据网站内容生成，可能存在错误。",
     "error": "搜索失败，请重试。",
     "keys": "使用方向键移动，按 Enter 打开，按 Esc 关闭。"
+  },
+  "cards": {
+    "label": "卡片",
+    "loading": "正在加载…",
+    "empty": "暂无卡片",
+    "error": "无法加载卡片。",
+    "retry": "重试",
+    "dismiss": "关闭卡片",
+    "pinned": "已置顶"
   }
 }

@@ -2,7 +2,7 @@
  * Web SDK son kullanıcı metinleri (ADR-0084). Türkçe ve İngilizce pakete gömülüdür; diğer 20 dil
  * `<api>/sdk-web/i18n/<dil>.json` dosyasından SDK başlarken arka planda yüklenir (ana paket boyutu artmaz). Yüklenene
  * kadar ya da yükleme başarısız olursa İngilizce kullanılır. Kaynak kataloglar `sdk/web/i18n/*.json`; bu dosyadaki tr/en
- * tabloları bir testle o kataloglarla birebir eşit tutulur. Sohbet penceresi, web kampanyası ve arama penceresi ayrı paketlerdir: kendi
+ * tabloları bir testle o kataloglarla birebir eşit tutulur. Sohbet penceresi, web kampanyası, arama penceresi ve içerik kartı görünümü ayrı paketlerdir: kendi
  * tr/en metinlerini taşır, diğer dilleri SDK onlara aktarır (`loadedSection`).
  */
 
@@ -37,7 +37,7 @@ export interface MainStrings {
   inApp: { close: string; message: string; carousel: string; previous: string; next: string; slide: string };
 }
 
-export type CatalogSection = 'campaign' | 'chat' | 'search';
+export type CatalogSection = 'campaign' | 'chat' | 'search' | 'cards';
 export type SdkCatalog = MainStrings & Record<CatalogSection, Record<string, string>>;
 
 export const BUILTIN_STRINGS: Record<'tr' | 'en', MainStrings> = {

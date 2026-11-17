@@ -98,5 +98,14 @@
     "disclaimer": "Von KI aus den Website-Inhalten erstellt; kann Fehler enthalten.",
     "error": "Die Suche ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
     "keys": "Mit den Pfeiltasten navigieren, mit Enter öffnen und mit Esc schließen."
+  },
+  "cards": {
+    "label": "Karten",
+    "loading": "Wird geladen…",
+    "empty": "Noch keine Karten",
+    "error": "Karten konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "dismiss": "Karte ausblenden",
+    "pinned": "Angeheftet"
   }
 }

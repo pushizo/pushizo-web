@@ -25,6 +25,14 @@ export type {
   SearchWidgetMountOptions,
   SearchWidgetOptions,
 } from './core/search.js';
+export type {
+  ContentCardsModule,
+  ContentCardsMountOptions,
+  ContentCardsSource,
+  ContentCardsViewHandle,
+  ContentCardsViewOptions,
+} from './core/content-cards.js';
+export type { InAppRenderer, InAppRenderHandle } from './browser/in-app.js';
 export { ContactValidationError, normalizeEmail, normalizePhone } from './core/contact.js';
 export { ampWebPushConfig, ampWebPushElement } from './amp.js';
 

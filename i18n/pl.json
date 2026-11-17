@@ -98,5 +98,14 @@
     "disclaimer": "Wygenerowane przez AI na podstawie treści witryny; może zawierać błędy.",
     "error": "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
     "keys": "Strzałki służą do nawigacji, Enter otwiera, a Esc zamyka."
+  },
+  "cards": {
+    "label": "Karty",
+    "loading": "Ładowanie…",
+    "empty": "Brak kart",
+    "error": "Nie udało się wczytać kart.",
+    "retry": "Spróbuj ponownie",
+    "dismiss": "Ukryj kartę",
+    "pinned": "Przypięte"
   }
 }

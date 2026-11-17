@@ -112,6 +112,29 @@ const targets = [
     define,
   },
   {
+    // Hazır içerik kartı görünümü (ADR-0082): ana SDK'dan ayrı, `Pushizo.ContentCards.render()` ile tembel yüklenir.
+    entryPoints: ['src/content-cards/entry-iife.ts'],
+    outfile: 'dist/PushizoContentCards.js',
+    format: 'iife',
+    bundle: true,
+    minify: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
+    // Paketleyiciler için kart görünümü (`@pushizo/web/content-cards`).
+    entryPoints: ['src/content-cards/index.ts'],
+    outfile: 'dist/content-cards.js',
+    format: 'esm',
+    bundle: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
     entryPoints: ['src/sw/worker.ts'],
     outfile: 'dist/PushizoSDKWorker.js',
     format: 'iife',

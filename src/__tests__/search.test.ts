@@ -310,9 +310,9 @@ describe('tembel yükleme ve paket sınırı', () => {
     expect(read('../core/search.ts')).not.toMatch(/from '\.\.\/search-widget/);
     const budget = JSON.parse(read('../../size-budget.json')) as { files: Record<string, number> };
     expect(budget.files['dist/PushizoSearch.js']).toBeLessThanOrEqual(8 * 1024);
-    // Ana paket bütçeleri bu fazda büyütülmedi.
+    // Arama, ana paket bütçesini büyütmedi; ESM bütçesi 2026-11-17'de istemci SDK'ları API eşitliği için 68→72 KB oldu.
     expect(budget.files['dist/PushizoSDK.js']).toBe(43008);
-    expect(budget.files['dist/index.js']).toBe(69632);
+    expect(budget.files['dist/index.js']).toBe(73728);
     expect(read('../../build.mjs')).toContain("outfile: 'dist/PushizoSearch.js'");
   });
 });

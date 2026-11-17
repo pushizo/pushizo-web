@@ -98,5 +98,14 @@
     "disclaimer": "Do AI tạo từ nội dung trang web; có thể có sai sót.",
     "error": "Tìm kiếm không thành công. Vui lòng thử lại.",
     "keys": "Dùng phím mũi tên để di chuyển, Enter để mở và Esc để đóng."
+  },
+  "cards": {
+    "label": "Thẻ",
+    "loading": "Đang tải…",
+    "empty": "Chưa có thẻ nào",
+    "error": "Không thể tải thẻ.",
+    "retry": "Thử lại",
+    "dismiss": "Bỏ qua thẻ",
+    "pinned": "Đã ghim"
   }
 }
