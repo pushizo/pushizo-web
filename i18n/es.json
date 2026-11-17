@@ -97,6 +97,6 @@
     "answerUnavailable": "Ahora mismo no se puede generar una respuesta; consulte los resultados de abajo.",
     "disclaimer": "Generado por IA a partir del contenido del sitio; puede contener errores.",
     "error": "No se pudo realizar la búsqueda. Inténtelo de nuevo.",
-    "keys": "Use las flechas para desplazarse, Enter para abrir y Esc para cerrar."
+    "keys": "Use las flechas para desplazarse, Intro para abrir y Esc para cerrar."
   }
 }
