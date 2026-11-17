@@ -1,6 +1,6 @@
 {
   "name": "@pushizo/web",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Pushizo Web SDK: izin istemi, Web Push aboneliği, kullanıcı/tag yönetimi, olaylar ve service worker",
   "license": "MIT",
   "homepage": "https://docs.pushizo.com/docs/sdk/web",
