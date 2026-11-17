@@ -1,4 +1,4 @@
-import { sdkStrings } from '../core/strings.js';
+import { sdkDirection, sdkStrings } from '../core/strings.js';
 import { safeColor, safeHttpUrl } from '../core/in-app-logic.js';
 import type { InAppBlock, InAppMessage } from '../core/types.js';
 
@@ -10,12 +10,12 @@ const CSS = `
 .hs-placement.hs-filled{border:0}
 .hs-placement:not(.hs-filled){border:1px solid rgba(127,127,127,.3)}
 .hs-image{display:block;width:100%;height:auto;max-height:280px;object-fit:cover;border-radius:8px;margin:0 0 12px}
-.hs-title{margin:0 0 6px;font-size:17px;line-height:1.3;padding-right:32px}
+.hs-title{margin:0 0 6px;font-size:17px;line-height:1.3;padding-inline-end:32px}
 .hs-body{margin:0 0 12px;white-space:pre-line;opacity:.9}
 .hs-actions{display:flex;flex-wrap:wrap;gap:8px}
 .hs-button{background:var(--hs-btn-bg,#2563eb);color:var(--hs-btn-fg,#fff);border:0;border-radius:8px;padding:10px 16px;min-height:44px;font:inherit;font-weight:600;cursor:pointer}
 .hs-button:hover{filter:brightness(1.08)}
-.hs-close{position:absolute;top:6px;right:6px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer;opacity:.7}
+.hs-close{position:absolute;top:6px;inset-inline-end:6px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer;opacity:.7}
 .hs-close:hover{opacity:1;background:rgba(127,127,127,.18)}
 .hs-button:focus-visible,.hs-close:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 `;
@@ -35,6 +35,7 @@ export function renderPlacement(message: InAppMessage, target: Element, options:
   const doc = options.doc ?? document;
   const host = doc.createElement('div');
   host.setAttribute('data-hs-placement-message', message.id);
+  host.setAttribute('dir', sdkDirection(options.language));
   const root = host.attachShadow({ mode: 'open' });
   const style = doc.createElement('style');
   style.textContent = CSS;

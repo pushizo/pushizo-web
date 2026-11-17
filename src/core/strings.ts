@@ -119,7 +119,7 @@ export function resolveSdkLocale(language: string | null | undefined): SdkLocale
   return byLower.get(primary) ?? 'en';
 }
 
-/** Yazım yönü (ADR-0084): Arapça sağdan sola; yerleşim aynalaması Faz 74'te. */
+/** Yazım yönü (ADR-0084): Arapça sağdan sola; arayüz kökleri `dir` alır, stiller mantıksal özelliklerle aynalanır (Faz 74). */
 export function sdkDirection(language: string | null | undefined): 'ltr' | 'rtl' {
   return resolveSdkLocale(language) === 'ar' ? 'rtl' : 'ltr';
 }

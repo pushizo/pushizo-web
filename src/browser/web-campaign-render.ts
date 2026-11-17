@@ -56,7 +56,7 @@ h2{margin:0 0 8px;font-size:20px;line-height:1.3}
 p{margin:0 0 12px;white-space:pre-line;overflow-wrap:anywhere}
 .a{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .b{background:var(--bb,#2563eb);color:var(--bf,#fff);border:0;border-radius:8px;padding:10px 16px;min-height:44px;font:inherit;font-weight:600;cursor:pointer}
-.x{position:absolute;top:6px;right:6px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:inherit;font:400 26px/1 system-ui,sans-serif;cursor:pointer}
+.x{position:absolute;top:6px;inset-inline-end:6px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:inherit;font:400 26px/1 system-ui,sans-serif;cursor:pointer}
 .x:hover{background:rgba(127,127,127,.18)}
 form{display:grid;gap:12px;margin-top:8px}
 fieldset{border:0;margin:0;padding:0;display:grid;gap:6px}
