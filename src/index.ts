@@ -15,6 +15,16 @@ export type {
   ChatWidgetMountOptions,
   ChatWidgetOptions,
 } from './core/chat.js';
+export type {
+  SearchAnswer,
+  SearchQueryOptions,
+  SearchResponse,
+  SearchResult,
+  SearchWidgetHandle,
+  SearchWidgetModule,
+  SearchWidgetMountOptions,
+  SearchWidgetOptions,
+} from './core/search.js';
 export { ContactValidationError, normalizeEmail, normalizePhone } from './core/contact.js';
 export { ampWebPushConfig, ampWebPushElement } from './amp.js';
 

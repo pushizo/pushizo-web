@@ -79,5 +79,24 @@
     "error": "Coś poszło nie tak. Prosimy spróbować ponownie.",
     "download": "Pobierz",
     "resolved": "Ta rozmowa została oznaczona jako rozwiązana. Wysłanie nowej wiadomości otworzy ją ponownie."
+  },
+  "search": {
+    "title": "Szukaj w tej witrynie",
+    "placeholder": "Czego szukasz?",
+    "close": "Zamknij",
+    "hint": "Wpisz co najmniej 2 znaki, aby wyszukać.",
+    "searching": "Wyszukiwanie…",
+    "results": "Wyniki: {n}",
+    "resultsLabel": "Wyniki wyszukiwania",
+    "noResults": "Nie znaleziono wyników.",
+    "ask": "Zapytaj AI",
+    "answering": "Przygotowywanie odpowiedzi…",
+    "answerTitle": "Odpowiedź",
+    "sources": "Źródła",
+    "notFound": "W treściach witryny nie znaleziono odpowiedzi na to pytanie.",
+    "answerUnavailable": "Obecnie nie można wygenerować odpowiedzi; poniżej dostępne są wyniki.",
+    "disclaimer": "Wygenerowane przez AI na podstawie treści witryny; może zawierać błędy.",
+    "error": "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
+    "keys": "Strzałki służą do nawigacji, Enter otwiera, a Esc zamyka."
   }
 }

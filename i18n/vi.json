@@ -79,5 +79,24 @@
     "error": "Đã xảy ra lỗi. Vui lòng thử lại.",
     "download": "Tải xuống",
     "resolved": "Cuộc trò chuyện này đã được đánh dấu là đã giải quyết. Hãy gửi tin nhắn mới để mở lại."
+  },
+  "search": {
+    "title": "Tìm trên trang web này",
+    "placeholder": "Bạn đang tìm gì?",
+    "close": "Đóng",
+    "hint": "Nhập ít nhất 2 ký tự để tìm kiếm.",
+    "searching": "Đang tìm…",
+    "results": "{n} kết quả",
+    "resultsLabel": "Kết quả tìm kiếm",
+    "noResults": "Không tìm thấy kết quả.",
+    "ask": "Hỏi AI",
+    "answering": "Đang chuẩn bị câu trả lời…",
+    "answerTitle": "Câu trả lời",
+    "sources": "Nguồn",
+    "notFound": "Không tìm thấy câu trả lời cho câu hỏi này trong nội dung trang web.",
+    "answerUnavailable": "Hiện chưa thể tạo câu trả lời; hãy xem các kết quả bên dưới.",
+    "disclaimer": "Do AI tạo từ nội dung trang web; có thể có sai sót.",
+    "error": "Tìm kiếm không thành công. Vui lòng thử lại.",
+    "keys": "Dùng phím mũi tên để di chuyển, Enter để mở và Esc để đóng."
   }
 }

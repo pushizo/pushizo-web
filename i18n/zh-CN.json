@@ -79,5 +79,24 @@
     "error": "出现问题，请重试。",
     "download": "下载",
     "resolved": "此对话已标记为已解决。发送新消息即可重新开启。"
+  },
+  "search": {
+    "title": "搜索本站",
+    "placeholder": "您想找什么？",
+    "close": "关闭",
+    "hint": "请至少输入 2 个字符进行搜索。",
+    "searching": "正在搜索…",
+    "results": "{n} 条结果",
+    "resultsLabel": "搜索结果",
+    "noResults": "未找到结果。",
+    "ask": "问 AI",
+    "answering": "正在准备回答…",
+    "answerTitle": "回答",
+    "sources": "来源",
+    "notFound": "网站内容中未找到该问题的答案。",
+    "answerUnavailable": "暂时无法生成回答，请查看下方的结果。",
+    "disclaimer": "由 AI 根据网站内容生成，可能存在错误。",
+    "error": "搜索失败，请重试。",
+    "keys": "使用方向键移动，按 Enter 打开，按 Esc 关闭。"
   }
 }

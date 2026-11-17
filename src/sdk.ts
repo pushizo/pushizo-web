@@ -50,7 +50,8 @@ import { ErrorReporter } from './core/errors.js';
 import { newEventId } from './core/event-id.js';
 import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
-import { loadedSection, loadSdkStrings } from './core/strings.js';
+import { loadedSection, loadSdkStrings, sdkDirection } from './core/strings.js';
+import { SearchClient, loadSearchWidget, type SearchQueryOptions, type SearchResponse, type SearchWidgetHandle, type SearchWidgetOptions } from './core/search.js';
 import { contentCardEvent, listContentCards } from './core/content-cards.js';
 import { ChatClient, loadChatWidget, type ChatEvents, type ChatWidgetHandle, type ChatWidgetOptions } from './core/chat.js';
 import { newFlagSubject, parseFeatureFlags } from './core/feature-flags.js';
@@ -191,6 +192,9 @@ export class PushizoSdk {
     allowed: () => !!this.api && !this.consentPending(),
   });
   private chatWidget: ChatWidgetHandle | null = null;
+  /** Site içi arama (ADR-0093): istemci ana pakette, arama penceresi ayrı pakette tembel yüklenir. */
+  private readonly search = new SearchClient({ api: () => this.api, language: () => this.language.split('-')[0] ?? 'en' });
+  private searchWidget: SearchWidgetHandle | null = null;
 
   // --- Yaşam döngüsü ---
 
@@ -1945,6 +1949,46 @@ export class PushizoSdk {
     on: <K extends keyof ChatEvents>(event: K, cb: (value: ChatEvents[K]) => void): (() => void) => this.chat.on(event, cb),
   };
 
+  /**
+   * Site içi arama (ADR-0093). `open()` hazır arama penceresini (ayrı paket) yükleyip açar; arayüzsüz kullanım için
+   * `query()` + `trackClick()`. `mode: 'answer'` sitenin kendi içeriğinden kaynak gösteren AI yanıtı ister; yanıt
+   * verilemezse yalnız sonuçlar döner.
+   */
+  readonly Search = {
+    query: (text: string, options?: SearchQueryOptions): Promise<SearchResponse> => {
+      this.assertReady();
+      return this.search.query(text, options);
+    },
+    trackClick: (queryId: string, url: string, position?: number): Promise<void> => this.search.trackClick(queryId, url, position),
+    open: async (options: SearchWidgetOptions = {}): Promise<void> => {
+      this.assertReady();
+      if (!this.searchWidget) {
+        const mountOptions = { ...options, language: this.language, dir: sdkDirection(this.language), strings: loadedSection(this.language, 'search') };
+        const loaded = options.mount ? null : await loadSearchWidget(options.widgetUrl ?? `${this.apiSeed}/sdk-web/PushizoSearch.js`, options.nonce);
+        // Eşzamanlı iki `open()` tek pencere kurar.
+        this.searchWidget ??= loaded ? loaded.mount(this.search, mountOptions) : options.mount!(this.search, mountOptions);
+      }
+      this.searchWidget.open(options.query);
+    },
+    close: (): void => this.searchWidget?.close(),
+    /** Öğeye (seçici veya düğüm) tıklanınca pencereyi açar; dönüş: bağı kaldıran fonksiyon. */
+    attach: (target: string | Element, options: SearchWidgetOptions = {}): (() => void) => {
+      const node = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!node) return () => undefined;
+      const onClick = (event: Event) => {
+        event.preventDefault();
+        void this.Search.open(options).catch((err: unknown) => this.logger.warn('arama penceresi açılamadı', err));
+      };
+      node.addEventListener('click', onClick);
+      return () => node.removeEventListener('click', onClick);
+    },
+    /** Pencereyi kaldırır (seçenekleri değiştirmek için yeniden `open()` çağrılır). */
+    destroy: (): void => {
+      this.searchWidget?.destroy();
+      this.searchWidget = null;
+    },
+  };
+
   readonly Debug = {
     setLogLevel: (level: LogLevel): void => this.logger.setLevel(level),
   };
@@ -1970,6 +2014,8 @@ export class PushizoSdk {
     this.inApp.destroy();
     this.webCampaigns.destroy();
     this.personalization.destroy();
+    this.searchWidget?.destroy();
+    this.searchWidget = null;
   }
 }
 

@@ -89,6 +89,29 @@ const targets = [
     define,
   },
   {
+    // Site içi arama penceresi (ADR-0093): ana SDK'dan ayrı, `Pushizo.Search.open()` ile tembel yüklenir.
+    entryPoints: ['src/search-widget/entry-iife.ts'],
+    outfile: 'dist/PushizoSearch.js',
+    format: 'iife',
+    bundle: true,
+    minify: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
+    // Paketleyiciler için arama penceresi (`@pushizo/web/search-widget`).
+    entryPoints: ['src/search-widget/index.ts'],
+    outfile: 'dist/search-widget.js',
+    format: 'esm',
+    bundle: true,
+    platform: 'browser',
+    target: ['es2020'],
+    sourcemap: true,
+    define,
+  },
+  {
     entryPoints: ['src/sw/worker.ts'],
     outfile: 'dist/PushizoSDKWorker.js',
     format: 'iife',

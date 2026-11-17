@@ -79,5 +79,24 @@
     "error": "문제가 발생했습니다. 다시 시도해 주세요.",
     "download": "다운로드",
     "resolved": "이 대화는 해결됨으로 표시되었습니다. 새 메시지를 보내면 대화가 다시 열립니다."
+  },
+  "search": {
+    "title": "사이트 내 검색",
+    "placeholder": "무엇을 찾으세요?",
+    "close": "닫기",
+    "hint": "2자 이상 입력하세요.",
+    "searching": "검색 중…",
+    "results": "결과 {n}개",
+    "resultsLabel": "검색 결과",
+    "noResults": "결과가 없습니다.",
+    "ask": "AI에게 묻기",
+    "answering": "답변을 준비하고 있습니다…",
+    "answerTitle": "답변",
+    "sources": "출처",
+    "notFound": "사이트 콘텐츠에서 이 질문의 답을 찾지 못했습니다.",
+    "answerUnavailable": "지금은 답변을 생성할 수 없습니다. 아래 결과를 확인해 보세요.",
+    "disclaimer": "사이트 콘텐츠를 바탕으로 AI가 생성했으며 오류가 있을 수 있습니다.",
+    "error": "검색하지 못했습니다. 다시 시도해 주세요.",
+    "keys": "화살표 키로 이동하고 Enter로 열고 Esc로 닫습니다."
   }
 }

@@ -44,6 +44,10 @@
       "types": "./dist/chat-widget/index.d.ts",
       "default": "./dist/chat-widget.js"
     },
+    "./search-widget": {
+      "types": "./dist/search-widget/index.d.ts",
+      "default": "./dist/search-widget.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

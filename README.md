@@ -77,6 +77,7 @@ Site kökünde `PushizoSDKWorker.js` bulunmalıdır (içeriği API'deki worker'�
 | `InAppMessages` | `addTrigger(s)`, `removeTrigger(s)`, `clearTriggers`, `getTriggers`, `setScreen`, `addClickListener`, `addLifecycleListener`, `paused` |
 | `Inbox` | `list`, `markRead`, `markAllRead`, `archive`, `unreadCount`, `addObserver` |
 | `ContentCards` | `list(limit?)` (1-100; `{ cards, unviewedCount }`), `logImpression(id)`, `logClick(id)`, `dismiss(id)` (ADR-0082; kutu ile aynı kimlik kanıtı) |
+| `Search` | `query(text, { mode?, limit?, language? })` (`mode: 'answer'` sitenin içeriğinden kaynak gösteren AI yanıtı ister; verilemezse yalnız sonuçlar), `trackClick(queryId, url, position?)`, `open(options?)` / `close()` / `attach(target, options?)` / `destroy()` (hazır arama penceresi ayrı pakettir: `PushizoSearch.js` ya da `@pushizo/web/search-widget`; ADR-0093) |
 | `CustomLink` | `render` |
 | `Location` | `setShared(bool)`, `isShared`, `requestPermission(rationale?)` (yalnızca ön plan; ayrıntı [web rehberi](https://docs.pushizo.com/docs/sdk/web) "Konum") |
 | `Attribution` | `get(): { first, last }` (UTM / tıklama kimliği dokunuşları; aşağıdaki bölüm) |

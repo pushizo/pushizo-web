@@ -79,5 +79,24 @@
     "error": "Er is iets misgegaan. Probeer het opnieuw.",
     "download": "Downloaden",
     "resolved": "Dit gesprek is als opgelost gemarkeerd. Stuur een nieuw bericht om het te heropenen."
+  },
+  "search": {
+    "title": "Zoeken op deze site",
+    "placeholder": "Waar bent u naar op zoek?",
+    "close": "Sluiten",
+    "hint": "Typ minimaal 2 tekens om te zoeken.",
+    "searching": "Bezig met zoeken…",
+    "results": "{n} resultaten",
+    "resultsLabel": "Zoekresultaten",
+    "noResults": "Geen resultaten gevonden.",
+    "ask": "Vraag het aan AI",
+    "answering": "Antwoord wordt voorbereid…",
+    "answerTitle": "Antwoord",
+    "sources": "Bronnen",
+    "notFound": "Het antwoord op deze vraag is niet gevonden in de content van de site.",
+    "answerUnavailable": "Er kan nu geen antwoord worden gegenereerd; bekijk de resultaten hieronder.",
+    "disclaimer": "Door AI gegenereerd op basis van de content van de site; kan fouten bevatten.",
+    "error": "Het zoeken is mislukt. Probeer het opnieuw.",
+    "keys": "Gebruik de pijltjestoetsen om te navigeren, Enter om te openen en Esc om te sluiten."
   }
 }

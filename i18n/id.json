@@ -79,5 +79,24 @@
     "error": "Terjadi kesalahan. Silakan coba lagi.",
     "download": "Unduh",
     "resolved": "Percakapan ini telah ditandai selesai. Kirim pesan baru untuk membukanya kembali."
+  },
+  "search": {
+    "title": "Cari di situs ini",
+    "placeholder": "Apa yang Anda cari?",
+    "close": "Tutup",
+    "hint": "Ketik minimal 2 karakter untuk mencari.",
+    "searching": "Mencari…",
+    "results": "{n} hasil",
+    "resultsLabel": "Hasil pencarian",
+    "noResults": "Tidak ada hasil.",
+    "ask": "Tanya AI",
+    "answering": "Menyiapkan jawaban…",
+    "answerTitle": "Jawaban",
+    "sources": "Sumber",
+    "notFound": "Jawaban untuk pertanyaan ini tidak ditemukan di konten situs.",
+    "answerUnavailable": "Jawaban belum dapat dibuat saat ini; silakan lihat hasil di bawah.",
+    "disclaimer": "Dibuat oleh AI dari konten situs; mungkin mengandung kesalahan.",
+    "error": "Pencarian gagal. Silakan coba lagi.",
+    "keys": "Gunakan tombol panah untuk berpindah, Enter untuk membuka, dan Esc untuk menutup."
   }
 }

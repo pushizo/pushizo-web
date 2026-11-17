@@ -79,5 +79,24 @@
     "error": "Xəta baş verdi. Zəhmət olmasa, yenidən cəhd edin.",
     "download": "Endir",
     "resolved": "Bu söhbət həll edilmiş kimi qeyd olunub. Yenidən açmaq üçün yeni mesaj göndərin."
+  },
+  "search": {
+    "title": "Saytda axtar",
+    "placeholder": "Nə axtarırsınız?",
+    "close": "Bağla",
+    "hint": "Axtarmaq üçün ən azı 2 simvol yazın.",
+    "searching": "Axtarılır…",
+    "results": "{n} nəticə",
+    "resultsLabel": "Axtarış nəticələri",
+    "noResults": "Nəticə tapılmadı.",
+    "ask": "Süni intellektdən soruş",
+    "answering": "Cavab hazırlanır…",
+    "answerTitle": "Cavab",
+    "sources": "Mənbələr",
+    "notFound": "Bu sualın cavabı saytın məzmununda tapılmadı.",
+    "answerUnavailable": "Hazırda cavab yaradıla bilmir; aşağıdakı nəticələrə baxa bilərsiniz.",
+    "disclaimer": "Süni intellekt tərəfindən saytın məzmunu əsasında yaradılıb; səhvlər ola bilər.",
+    "error": "Axtarış alınmadı. Zəhmət olmasa, yenidən cəhd edin.",
+    "keys": "Hərəkət etmək üçün ox düymələrindən, açmaq üçün Enter, bağlamaq üçün Esc düyməsindən istifadə edin."
   }
 }

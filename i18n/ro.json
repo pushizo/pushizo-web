@@ -79,5 +79,24 @@
     "error": "A apărut o eroare. Încercați din nou.",
     "download": "Descarcă",
     "resolved": "Această conversație a fost marcată ca rezolvată. Trimiteți un mesaj nou pentru a o redeschide."
+  },
+  "search": {
+    "title": "Căutați pe acest site",
+    "placeholder": "Ce căutați?",
+    "close": "Închideți",
+    "hint": "Tastați cel puțin 2 caractere pentru a căuta.",
+    "searching": "Se caută…",
+    "results": "Rezultate: {n}",
+    "resultsLabel": "Rezultatele căutării",
+    "noResults": "Niciun rezultat găsit.",
+    "ask": "Întrebați AI",
+    "answering": "Se pregătește răspunsul…",
+    "answerTitle": "Răspuns",
+    "sources": "Surse",
+    "notFound": "Răspunsul la această întrebare nu a fost găsit în conținutul site-ului.",
+    "answerUnavailable": "Momentan nu se poate genera un răspuns; consultați rezultatele de mai jos.",
+    "disclaimer": "Generat de AI pe baza conținutului site-ului; poate conține greșeli.",
+    "error": "Căutarea a eșuat. Încercați din nou.",
+    "keys": "Folosiți tastele săgeți pentru navigare, Enter pentru a deschide și Esc pentru a închide."
   }
 }

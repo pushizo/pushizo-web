@@ -79,5 +79,24 @@
     "error": "Algo deu errado. Tente novamente.",
     "download": "Baixar",
     "resolved": "Esta conversa foi marcada como resolvida. Envie uma nova mensagem para reabri-la."
+  },
+  "search": {
+    "title": "Buscar neste site",
+    "placeholder": "O que você procura?",
+    "close": "Fechar",
+    "hint": "Digite pelo menos 2 caracteres para buscar.",
+    "searching": "Buscando…",
+    "results": "{n} resultados",
+    "resultsLabel": "Resultados da busca",
+    "noResults": "Nenhum resultado encontrado.",
+    "ask": "Perguntar à IA",
+    "answering": "Preparando a resposta…",
+    "answerTitle": "Resposta",
+    "sources": "Fontes",
+    "notFound": "A resposta para esta pergunta não foi encontrada no conteúdo do site.",
+    "answerUnavailable": "Não é possível gerar uma resposta agora; veja os resultados abaixo.",
+    "disclaimer": "Gerado por IA a partir do conteúdo do site; pode conter erros.",
+    "error": "A busca falhou. Tente novamente.",
+    "keys": "Use as setas para navegar, Enter para abrir e Esc para fechar."
   }
 }

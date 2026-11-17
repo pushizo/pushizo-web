@@ -79,5 +79,24 @@
     "error": "Något gick fel. Försök igen.",
     "download": "Ladda ned",
     "resolved": "Den här konversationen har markerats som löst. Skicka ett nytt meddelande för att öppna den igen."
+  },
+  "search": {
+    "title": "Sök på webbplatsen",
+    "placeholder": "Vad letar du efter?",
+    "close": "Stäng",
+    "hint": "Skriv minst 2 tecken för att söka.",
+    "searching": "Söker…",
+    "results": "{n} resultat",
+    "resultsLabel": "Sökresultat",
+    "noResults": "Inga resultat hittades.",
+    "ask": "Fråga AI",
+    "answering": "Förbereder ett svar…",
+    "answerTitle": "Svar",
+    "sources": "Källor",
+    "notFound": "Svaret på frågan hittades inte i webbplatsens innehåll.",
+    "answerUnavailable": "Det går inte att ta fram ett svar just nu; se resultaten nedan.",
+    "disclaimer": "Genererat av AI utifrån webbplatsens innehåll; kan innehålla fel.",
+    "error": "Sökningen misslyckades. Försök igen.",
+    "keys": "Använd piltangenterna för att flytta, Enter för att öppna och Esc för att stänga."
   }
 }

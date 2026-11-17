@@ -79,5 +79,24 @@
     "error": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     "download": "Herunterladen",
     "resolved": "Diese Unterhaltung wurde als gelöst markiert. Senden Sie eine neue Nachricht, um sie wieder zu öffnen."
+  },
+  "search": {
+    "title": "Website durchsuchen",
+    "placeholder": "Wonach suchen Sie?",
+    "close": "Schließen",
+    "hint": "Geben Sie mindestens 2 Zeichen ein.",
+    "searching": "Suche läuft…",
+    "results": "{n} Ergebnisse",
+    "resultsLabel": "Suchergebnisse",
+    "noResults": "Keine Ergebnisse gefunden.",
+    "ask": "KI fragen",
+    "answering": "Antwort wird erstellt…",
+    "answerTitle": "Antwort",
+    "sources": "Quellen",
+    "notFound": "Die Antwort auf diese Frage wurde in den Website-Inhalten nicht gefunden.",
+    "answerUnavailable": "Derzeit kann keine Antwort erstellt werden; sehen Sie sich die Ergebnisse unten an.",
+    "disclaimer": "Von KI aus den Website-Inhalten erstellt; kann Fehler enthalten.",
+    "error": "Die Suche ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "keys": "Mit den Pfeiltasten navigieren, mit Enter öffnen und mit Esc schließen."
   }
 }
