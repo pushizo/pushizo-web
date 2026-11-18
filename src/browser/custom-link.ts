@@ -1,21 +1,10 @@
+import { sdkStrings } from '../core/strings.js';
 import type { CustomLinkOptions } from '../core/types.js';
 import { safeAccentColor } from './prompts.js';
 
 /** Özel bağlantı isteminin yerleştirileceği öğelerin sınıfı (eski sağlayıcı ile aynı adlandırma düzeni). */
 export const CUSTOM_LINK_SELECTOR = '.pushizo-customlink-container';
 
-const TEXTS = {
-  tr: {
-    subscribe: 'Bildirimlere abone ol',
-    unsubscribe: 'Bildirim aboneliğinden çık',
-    explanation: 'Önemli güncellemeleri ve kampanyaları anında alın.',
-  },
-  en: {
-    subscribe: 'Subscribe to push notifications',
-    unsubscribe: 'Unsubscribe from push notifications',
-    explanation: 'Get important updates and offers instantly.',
-  },
-};
 
 const STYLE_ID = 'hs-customlink-style';
 const CSS = `
@@ -52,7 +41,7 @@ export function renderCustomLinks(
   const containers = Array.from(root.querySelectorAll<HTMLElement>(CUSTOM_LINK_SELECTOR));
   if (containers.length === 0) return 0;
   ensureStyle();
-  const t = language.toLowerCase().startsWith('tr') ? TEXTS.tr : TEXTS.en;
+  const t = sdkStrings(language).customLink;
   const hidden = subscribed && !options.unsubscribeEnabled;
   const style = options.style === 'link' ? 'link' : 'button';
   const size = options.size === 'small' || options.size === 'large' ? options.size : 'medium';

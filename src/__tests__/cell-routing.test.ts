@@ -175,10 +175,10 @@ describe('Web SDK bölgesel API kökü', () => {
   it('açık apiUrl config api_url ile değiştirilmez', async () => {
     const calls = fakeApi((url) => (url.pathname.endsWith('/config') ? json(200, config('https://api.eu.test')) : undefined));
     const hs = createSdk();
-    await hs.init({ appId: 'app_1', apiUrl: 'https://proxy.example.com', logLevel: 'silent' });
+    await hs.init({ appId: 'app_1', apiUrl: 'https://proxy.pushizo.com', logLevel: 'silent' });
     hs.Session.sendEvent('evt');
     await vi.waitFor(() => expect(calls.some((c) => c.startsWith('POST '))).toBe(true), { timeout: 3000 });
-    expect(calls.every((c) => c.includes('https://proxy.example.com/'))).toBe(true);
+    expect(calls.every((c) => c.includes('https://proxy.pushizo.com/'))).toBe(true);
     expect(stored().regionalApiUrl).toBeNull();
     hs.destroy();
   });

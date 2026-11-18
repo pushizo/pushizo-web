@@ -32,14 +32,14 @@ function message(
       dismissible: true,
       auto_dismiss_seconds: null,
       blocks: [
-        { type: 'image', url: 'https://cdn.example.com/sale.png', alt: 'İndirim görseli' },
+        { type: 'image', url: 'https://cdn.pushizo.com/sale.png', alt: 'İndirim görseli' },
         { type: 'title', text: '<img src=x onerror="window.__xss=1">Merhaba' },
         { type: 'body', text: 'Sepetin <b>seni</b> bekliyor' },
         {
           type: 'button',
           id: 'go',
           text: 'Sepete git',
-          action: { type: 'url', url: 'https://shop.example.com/cart' },
+          action: { type: 'url', url: 'https://shop.pushizo.com/cart' },
           background_color: '#16a34a',
           text_color: '#ffffff',
         },
@@ -283,6 +283,13 @@ function fakeApi(messages: InAppMessage[]) {
     if (/^POST \/users\/[^/]+\/inbox\/[^/]+\/read$/.test(route))
       return json(200, { ...inboxItem(path.split('/')[4]!, true) });
     if (/^DELETE \/users\/[^/]+\/inbox\/[^/]+$/.test(route)) return json(200, { ok: true });
+    if (/^GET \/users\/[^/]+\/cards$/.test(route))
+      return json(200, {
+        unviewed_count: 1,
+        data: [{ id: 'crd_1', message_id: 'msg_1', type: 'captioned_image', title: 'Kart', body: null, url: null, image_url: 'https://cdn/x.png', button_text: 'İncele', data: {}, pinned: true, priority: 70, viewed: false, clicked: false, expires_at: null, created_at: '2026-11-10T10:00:00.000Z' }],
+      });
+    if (/^POST \/users\/[^/]+\/cards\/[^/]+\/(impression|click|dismiss)$/.test(route))
+      return json(200, { id: 'crd_1', message_id: null, type: 'classic', title: null, body: null, url: null, image_url: null, button_text: null, data: {}, pinned: false, priority: 0, viewed: true, clicked: true, expires_at: null, created_at: '2026-11-10T10:00:00.000Z' });
     if (route === 'POST /errors') return json(200, { accepted: 0 });
     return json(404, { error: { code: 'HS_NOT_FOUND', message: route } });
   });
@@ -354,13 +361,13 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(() => hs.User.addSms('5321234567')).toThrow(ContactValidationError);
     expect(() => hs.User.addEmail('geçersiz')).toThrow(ContactValidationError);
 
-    hs.User.addEmail('  Ayse.Kaya@Example.COM ');
+    hs.User.addEmail('  Ayse.Kaya@Pushizo.COM ');
     hs.User.addSms('0090 (532) 123-45-67');
     await vi.waitFor(() => expect(api.find('POST', '/subscriptions')).toHaveLength(2));
     const [email, sms] = api.find('POST', '/subscriptions');
     expect(email!.body).toMatchObject({
       channel: 'email',
-      token: 'ayse.kaya@example.com',
+      token: 'ayse.kaya@pushizo.com',
       user: {},
       ownership_proof: true,
     });
@@ -370,21 +377,21 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(sms!.body).toMatchObject({
       channel: 'sms',
       token: '+905321234567',
-      user: { subscription_id: 'sub_mail', token_hash: await digest('ayse.kaya@example.com') },
+      user: { subscription_id: 'sub_mail', token_hash: await digest('ayse.kaya@pushizo.com') },
     });
     await vi.waitFor(() => expect(hs.pendingOperations).toBe(0));
     const stored = localStorage.getItem('hs:app_1')!;
-    expect(stored).not.toContain('ayse.kaya@example.com');
+    expect(stored).not.toContain('ayse.kaya@pushizo.com');
     expect(stored).not.toContain('+905321234567');
     expect(storedContacts()).toHaveLength(2);
     // Push aboneliği yokken kullanıcı e-posta aboneliğinden gelir.
     expect(hs.User.id).toBe('usr_1');
 
-    hs.User.removeEmail('AYSE.KAYA@example.com');
+    hs.User.removeEmail('AYSE.KAYA@pushizo.com');
     await vi.waitFor(() => expect(api.find('DELETE', '/subscriptions/sub_mail')).toHaveLength(1));
     // Sahiplik kanıtı (ADR-0016): kanonik adresin SHA-256 özeti; anonim kullanıcıda identity_hash yok.
     expect(api.find('DELETE', '/subscriptions/sub_mail')[0]!.query).toEqual({
-      token_hash: await digest('ayse.kaya@example.com'),
+      token_hash: await digest('ayse.kaya@pushizo.com'),
     });
     await vi.waitFor(() => expect(storedContacts()).toHaveLength(1));
     hs.destroy();
@@ -394,7 +401,7 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     const api = fakeApi([]);
     const hs = createSdk();
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(hs.pendingOperations).toBe(0));
     const hash = 'a'.repeat(64);
     await hs.login('u-42', hash);
@@ -402,7 +409,7 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(api.find('POST', '/subscriptions/sub_mail/login')[0]!.body).toEqual({
       external_id: 'u-42',
       identity_hash: hash,
-      token_hash: await digest('a@example.com'),
+      token_hash: await digest('a@pushizo.com'),
     });
     hs.User.addSms('+905320000111');
     await vi.waitFor(() => expect(api.find('POST', '/subscriptions')).toHaveLength(2));
@@ -422,7 +429,7 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     const api = fakeApi([]);
     const hs = createSdk();
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(storedContacts()).toHaveLength(1));
     // Cihaz aboneliğine bağlama: kanıt kayıtlı push token'ının özetidir.
     expect(api.find('POST', '/subscriptions')[0]!.body?.user).toEqual({
@@ -506,6 +513,18 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(api.find('POST', '/users/usr_known/inbox/ibx_1/read')[0]!.body).toEqual(proof);
     expect(api.find('POST', '/users/usr_known/inbox/read-all')[0]!.body).toEqual(proof);
     expect(api.find('DELETE', '/users/usr_known/inbox/ibx_2')[0]!.query).toEqual(proof);
+    // İçerik kartları (ADR-0082): kutu ile aynı kanıt; akış ve olaylar ayrı uçlarda.
+    const feed = await hs.ContentCards.list(5);
+    expect(api.find('GET', '/users/usr_known/cards')[0]!.query).toEqual({ ...proof, limit: '5' });
+    expect(feed.cards[0]).toMatchObject({ id: 'crd_1', type: 'captioned_image', buttonText: 'İncele', pinned: true });
+    expect(feed.unviewedCount).toBe(1);
+    await hs.ContentCards.logClick('crd_1');
+    await hs.ContentCards.dismiss('crd_1');
+    expect(api.find('POST', '/users/usr_known/cards/crd_1/click')[0]!.body).toEqual(proof);
+    expect(api.find('POST', '/users/usr_known/cards/crd_1/dismiss')[0]!.body).toEqual(proof);
+    await expect(hs.ContentCards.logImpression('')).rejects.toThrow(/kart kimliği/);
+    // Aralık dışı limit diğer platformlarla aynı şekilde hata verir (sunucuya `NaN` gitmez).
+    for (const bad of [0, 101, 2.5, Number.NaN]) await expect(hs.ContentCards.list(bad)).rejects.toThrow(/limit 1-100/);
     hs.destroy();
   });
 
@@ -546,14 +565,14 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     });
     // Abonelik yokken in-app çalışmaz.
     expect(api.find('GET', '/in-app')).toHaveLength(0);
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
 
     // Abonelik oluşunca liste alınır ve bekleyen oturum başı koşulu değerlendirilir.
     await vi.waitFor(() =>
       expect(document.querySelector('[data-hs-message-id="iam_welcome"]')).not.toBeNull(),
     );
     // E-posta aboneliğinin sahiplik kanıtı (kanonik adresin özeti) liste ve olaylarla gönderilir (ADR-0016).
-    const mailHash = await digest('a@example.com');
+    const mailHash = await digest('a@pushizo.com');
     expect(api.find('GET', '/in-app')[0]!.query).toEqual({
       subscription_id: 'sub_mail',
       token_hash: mailHash,
@@ -590,11 +609,11 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     expect(clicks).toEqual([
       {
         message: { id: 'iam_cart' },
-        result: { actionId: 'go', url: 'https://shop.example.com/cart' },
+        result: { actionId: 'go', url: 'https://shop.pushizo.com/cart' },
       },
     ]);
     expect(open).toHaveBeenCalledWith(
-      'https://shop.example.com/cart',
+      'https://shop.pushizo.com/cart',
       '_blank',
       'noopener,noreferrer',
     );
@@ -665,7 +684,7 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     vi.spyOn(window, 'open').mockImplementation(() => null);
     const hs = createSdk();
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(api.find('GET', '/in-app')).toHaveLength(1));
     const shown = (id: string) => document.querySelector(`[data-hs-message-id="${id}"]`) !== null;
 
@@ -700,14 +719,14 @@ describe('Web SDK: e-posta/SMS, in-app ve inbox (sahte API)', () => {
     const hs = createSdk();
     await hs.init({ appId: 'app_1', apiUrl: 'https://api.test', logLevel: 'silent' });
     await expect(hs.Inbox.list()).rejects.toThrow(/kullanıcı veya abonelik yok/);
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(hs.pendingOperations).toBe(0));
 
     const events: InboxChangeEvent[] = [];
     hs.Inbox.addObserver((e) => events.push(e));
     const page = await hs.Inbox.list({ limit: 10 });
     // Tüm inbox isteklerinde aboneliğin sahiplik kanıtı (ADR-0016) gönderilir.
-    const mailHash = await digest('a@example.com');
+    const mailHash = await digest('a@pushizo.com');
     expect(api.find('GET', '/users/usr_1/inbox')[0]!.query).toEqual({
       subscription_id: 'sub_mail',
       token_hash: mailHash,

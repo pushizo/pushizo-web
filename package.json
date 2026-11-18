@@ -1,6 +1,6 @@
 {
   "name": "@pushizo/web",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Pushizo Web SDK: izin istemi, Web Push aboneliği, kullanıcı/tag yönetimi, olaylar ve service worker",
   "license": "MIT",
   "homepage": "https://docs.pushizo.com/docs/sdk/web",
@@ -44,6 +44,14 @@
       "types": "./dist/chat-widget/index.d.ts",
       "default": "./dist/chat-widget.js"
     },
+    "./search-widget": {
+      "types": "./dist/search-widget/index.d.ts",
+      "default": "./dist/search-widget.js"
+    },
+    "./content-cards": {
+      "types": "./dist/content-cards/index.d.ts",
+      "default": "./dist/content-cards.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -59,7 +67,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
-    "happy-dom": "^20.14.5"
+    "happy-dom": "^21.0.4"
   },
   "sideEffects": false
 }

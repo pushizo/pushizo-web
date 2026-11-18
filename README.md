@@ -13,17 +13,6 @@
 
 **Pushizo Web SDK** — Web push permission and subscription (VAPID), email and SMS subscriptions, users, tags and aliases, events, in-app messages, notification inbox, user preferences and the service worker. The API surface is compatible with eski sağlayıcı v5.
 
-> **Status:** The script tag is served by the Pushizo API today; the npm package is being published.<br>
-> **Durum:** Script etiketi bugün Pushizo API'sinden sunulur; npm paketinin yayını hazırlanıyor.
-
-**Install from GitHub until then · O zamana kadar GitHub'dan kurulum:**
-
-```bash
-npm install --allow-remote=root https://github.com/pushizo/pushizo-web/releases/download/v0.1.0/pushizo-web-0.1.0.tgz
-```
-
-**After publication · Yayından sonra:**
-
 ```html
 <script src="https://api.pushizo.com/sdk-web/PushizoSDK.js" async></script>
 <script>
@@ -51,18 +40,18 @@ Ayrıntılı kullanım kılavuzu: [docs.pushizo.com/docs/sdk/web](https://docs.p
 ## Kurulum
 
 ```html
-<script src="https://api.example.com/sdk-web/PushizoSDK.js" async></script>
+<script src="https://api.pushizo.com/sdk-web/PushizoSDK.js" async></script>
 <script>
   window.PushizoDeferred = window.PushizoDeferred || [];
   PushizoDeferred.push(async (Pushizo) => {
-    await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
+    await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.pushizo.com' });
   });
 </script>
 ```
 
 ```ts
 import Pushizo from '@pushizo/web';
-await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.example.com' });
+await Pushizo.init({ appId: 'app_…', apiUrl: 'https://api.pushizo.com' });
 ```
 
 CommonJS (eski paketleyiciler, Jest): paket `require` koşulunda `dist/cjs/index.cjs` ve CommonJS tür tanımlarını sunar.
@@ -80,15 +69,19 @@ Site kökünde `PushizoSDKWorker.js` bulunmalıdır (içeriği API'deki worker'�
 
 | Alan | Üyeler |
 |------|--------|
-| Yaşam döngüsü | `init`, `setConsentGiven`, `login(externalId, identityHash?)`, `logout`, `destroy` |
+| Yaşam döngüsü | `init`, `setConsentGiven`, `login(externalId, identityHash? \| { identityHash?, jwt? }, profile?)` (`profile`: `{ email?, sms?, tags?, aliases? }` girişle birlikte ayarlanır), `logout`, `updateUserJwt`, `destroy` |
 | `User` | `addTag(s)`, `removeTag(s)`, `getTags`, `setLanguage`, `setProperty`, `addAlias(es)`, `removeAlias`, `addEmail`, `removeEmail`, `addSms`, `removeSms`, `getPreferences()`, `setPreferences([...])`, `getCategories()`, `setAdsPersonalizationConsent(bool)`, `getConsents()`, `id`, `externalId`, `pushSubscription.{id, token, optedIn, state, optIn, optOut, addObserver}` |
-| `Notifications` | `permission`, `requestPermission`, `addClickListener`, `addForegroundLifecycleListener` |
+| `Notifications` | `permission`, `requestPermission`, `addClickListener` / `removeClickListener`, `addForegroundLifecycleListener` / `removeForegroundLifecycleListener`, `addPermissionObserver` / `removePermissionObserver`, `clearAll`, `setBadgeCount(n)` / `clearBadge()` (App Badging API; desteklenmiyorsa `false`) |
 | `Slidedown` | `promptPush`, `promptEmail`, `promptSms`, `promptEmailAndSms` (hepsi `{ force? }`) |
 | `Session` | `sendEvent(name, properties?, value?, { eventId? })` — `eventId`: tarayıcı pikseliyle aynı kimlik (Conversions API tekilleştirmesi, docs/guides/conversions-api.md) |
-| `InAppMessages` | `addTrigger(s)`, `removeTrigger(s)`, `clearTriggers`, `getTriggers`, `setScreen`, `addClickListener`, `addLifecycleListener`, `paused` |
-| `Inbox` | `list`, `markRead`, `markAllRead`, `archive`, `unreadCount`, `addObserver` |
+| `InAppMessages` | `addTrigger(s)`, `removeTrigger(s)`, `clearTriggers`, `getTriggers`, `setScreen`, `addClickListener`, `addLifecycleListener`, `setRenderer(renderer \| null)` (özel çizim), `paused` |
+| `Inbox` | `list`, `markRead`, `markAllRead`, `archive`, `unreadCount`, `addObserver`, `removeObserver` |
+| `FeatureFlags` | `refresh`, `isEnabled(key, default?)`, `getValue(key, default?)`, `addObserver`, `removeObserver` |
+| `Chat` | `show` / `hide` / `open` / `close` / `toggle` (hazır pencere ayrı pakettir), `connect`, `disconnect`, `sendMessage`, `sendFile`, `retry`, `getMessages`, `markRead`, `leaveOfflineMessage`, `getUnreadCount`, `unreadCount`, `getConfig(refresh?)`, `getConversation()`, `setTyping(bool)`, `attachmentUrl(id, download?)`, `on(event, cb)` |
+| `ContentCards` | `list(limit?)` (1-100; `{ cards, unviewedCount }`), `logImpression(id)`, `logClick(id)`, `dismiss(id)` (ADR-0082; kutu ile aynı kimlik kanıtı), `render(target, options?)` → `{ refresh, destroy }` (hazır kart görünümü ayrı pakettir: `PushizoContentCards.js` ya da `@pushizo/web/content-cards`) |
+| `Search` | `query(text, { mode?, limit?, language? })` (`mode: 'answer'` sitenin içeriğinden kaynak gösteren AI yanıtı ister; verilemezse yalnız sonuçlar), `trackClick(queryId, url, position?)`, `open(options?)` / `close()` / `attach(target, options?)` / `destroy()` (hazır arama penceresi ayrı pakettir: `PushizoSearch.js` ya da `@pushizo/web/search-widget`; ADR-0093) |
 | `CustomLink` | `render` |
-| `Location` | `setShared(bool)`, `isShared`, `requestPermission(rationale?)` (yalnızca ön plan; ayrıntı [web rehberi](https://docs.pushizo.com/docs/sdk/web) "Konum") |
+| `Location` | `setShared(bool)`, `isShared`, `permissionGranted`, `requestPermission(rationale?)` (yalnızca ön plan; ayrıntı [web rehberi](https://docs.pushizo.com/docs/sdk/web) "Konum") |
 | `Attribution` | `get(): { first, last }` (UTM / tıklama kimliği dokunuşları; aşağıdaki bölüm) |
 
 ## Atribüsyon (UTM ve tıklama kimlikleri)
@@ -165,7 +158,7 @@ npm run -w sdk/web build       # dist/index.js (ESM), dist/PushizoSDK.js (IIFE),
 npm run -w sdk/web typecheck
 npx vitest run --project unit sdk/web
 ```
-Boyut bütçesi: IIFE gzip < 25 KB (~24,0 KB), service worker gzip < 5 KB (~3,9 KB).
+Boyut bütçesi (`size-budget.json`, gzip): CDN paketi 42 KB (~41,6 KB), ESM/CJS 72 KB (~69 KB), service worker 6 KB (~4,3 KB), içerik kartı görünümü 4 KB (~2,7 KB).
 
 <!-- pushizo:footer -->
 ---

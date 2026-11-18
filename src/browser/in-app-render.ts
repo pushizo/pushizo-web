@@ -1,3 +1,4 @@
+import { fmt, sdkDirection, sdkStrings, type MainStrings } from '../core/strings.js';
 import type { HtmlBridgeAction } from '../core/html-bridge.js';
 import { safeColor, safeHttpUrl } from '../core/in-app-logic.js';
 import type { InAppBlock, InAppMessage } from '../core/types.js';
@@ -31,11 +32,7 @@ export interface RenderedInApp {
   close: () => void;
 }
 
-const TEXTS = {
-  tr: { close: 'Kapat', message: 'Mesaj', carousel: 'Kartlar', previous: 'Önceki kart', next: 'Sonraki kart', slide: (n: number, total: number) => `Kart ${n}/${total}` },
-  en: { close: 'Close', message: 'Message', carousel: 'Cards', previous: 'Previous card', next: 'Next card', slide: (n: number, total: number) => `Card ${n} of ${total}` },
-};
-type Texts = (typeof TEXTS)['tr'];
+type Texts = MainStrings['inApp'];
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input, select, textarea, iframe, [tabindex]:not([tabindex="-1"])';
@@ -45,7 +42,7 @@ const CSS = `
 :host{all:initial}
 .hs-layer{font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:light dark}
 .hs-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;animation:hs-fade .2s ease}
-.hs-card{position:relative;box-sizing:border-box;background:var(--hs-bg,#ffffff);color:var(--hs-fg,#18181b);text-align:left}
+.hs-card{position:relative;box-sizing:border-box;background:var(--hs-bg,#ffffff);color:var(--hs-fg,#18181b);text-align:start}
 .hs-card:focus{outline:none}
 .hs-modal{width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow:auto;border-radius:16px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .hs-fullscreen{position:fixed;inset:0;z-index:2147483000;overflow:auto;padding:48px 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;animation:hs-fade .2s ease}
@@ -65,7 +62,7 @@ const CSS = `
 .hs-banner .hs-actions{margin:0}
 .hs-button{background:var(--hs-btn-bg,#2563eb);color:var(--hs-btn-fg,#ffffff);border:0;border-radius:8px;padding:10px 16px;min-height:44px;font:inherit;font-weight:600;cursor:pointer}
 .hs-button:hover{filter:brightness(1.08)}
-.hs-close{position:absolute;top:6px;right:6px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:inherit;font:400 26px/1 system-ui,sans-serif;cursor:pointer;opacity:.75}
+.hs-close{position:absolute;top:6px;inset-inline-end:6px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:inherit;font:400 26px/1 system-ui,sans-serif;cursor:pointer;opacity:.75}
 .hs-close:hover{opacity:1;background:rgba(127,127,127,.18)}
 .hs-button:focus-visible,.hs-close:focus-visible,.hs-nav:focus-visible,.hs-track:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
 .hs-carousel{position:relative;margin:0 0 12px}
@@ -107,12 +104,13 @@ export function renderInAppMessage(
   options: InAppRenderOptions,
 ): RenderedInApp {
   const doc = options.doc ?? document;
-  const t = options.language.toLowerCase().startsWith('tr') ? TEXTS.tr : TEXTS.en;
+  const t = sdkStrings(options.language).inApp;
   const { display } = message;
   const isBlocking = display.layout === 'modal' || display.layout === 'fullscreen';
   const uid = `hs-iam-${++sequence}`;
 
   const host = doc.createElement('div');
+  host.setAttribute('dir', sdkDirection(options.language));
   host.id = 'hs-in-app';
   host.setAttribute('data-hs-message-id', message.id);
   host.setAttribute('data-hs-layout', display.layout);
@@ -343,7 +341,7 @@ function renderCarousel(doc: Document, block: CarouselBlock, t: Texts, uid: stri
     slide.className = 'hs-slide';
     slide.setAttribute('role', 'group');
     slide.setAttribute('aria-roledescription', 'slide');
-    slide.setAttribute('aria-label', t.slide(i + 1, cards.length));
+    slide.setAttribute('aria-label', fmt(t.slide, { n: i + 1, total: cards.length }));
     slide.setAttribute('data-hs-card-id', card.id);
     const src = safeHttpUrl(card.image_url);
     if (src) {
@@ -375,27 +373,32 @@ function renderCarousel(doc: Document, block: CarouselBlock, t: Texts, uid: stri
     }
     track.appendChild(slide);
   });
-  const scrollStep = (dir: 1 | -1): void => {
+  // Sağdan sola dilde (Faz 74) "sonraki" kart solda kalır: mantıksal yön fiziksel kaydırmaya çevrilir. Ok tuşları
+  // görsel yönü izler (sağ ok her zaman sağa kaydırır).
+  const rtl = sdkDirection(options.language) === 'rtl';
+  const scrollPhysical = (dir: 1 | -1): void => {
     const first = track.firstElementChild as HTMLElement | null;
     const step = (first?.offsetWidth ?? track.clientWidth) + 12;
     if (typeof track.scrollBy === 'function') track.scrollBy({ left: dir * step, behavior: 'smooth' });
     else track.scrollLeft += dir * step;
   };
+  const scrollStep = (dir: 1 | -1): void => scrollPhysical(rtl ? (dir === 1 ? -1 : 1) : dir);
   track.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      scrollStep(1);
+      scrollPhysical(1);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      scrollStep(-1);
+      scrollPhysical(-1);
     }
   });
   if (cards.length > 1) {
     const nav = doc.createElement('div');
     nav.className = 'hs-carousel-nav';
     const buttons: [1 | -1, string, string][] = [
-      [-1, t.previous, '\u2039'],
-      [1, t.next, '\u203a'],
+      // Sağdan sola düzende önceki düğmesi sağda durur ve sağı gösterir.
+      [-1, t.previous, rtl ? '\u203a' : '\u2039'],
+      [1, t.next, rtl ? '\u2039' : '\u203a'],
     ];
     for (const [dir, label, glyph] of buttons) {
       const btn = doc.createElement('button');

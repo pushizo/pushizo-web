@@ -187,6 +187,8 @@ export interface InitOptions {
   promptOptions?: PromptOptions;
   /** Web kampanyaları (pop-up / banner / slide-in, formlar, anketler; ADR-0039); varsayılan açık, `false` kapatır. */
   webCampaigns?: boolean;
+  /** Web sayfası içeriğini kişiselleştirme (ADR-0083); varsayılan açık, `false` kapatır. */
+  webPersonalization?: boolean;
   /** UTM ve reklam tıklama kimliği yakalama (birleşik atribüsyon, v3 Faz 23); varsayılan açık. */
   attribution?: AttributionOptions;
 }
@@ -308,6 +310,10 @@ export interface PersistedState {
   contactPromptDismissedAt: number | null;
   contactPromptDismissCount: number;
   /** `Location.setShared`: konum paylaşımı açık mı (kalıcı; varsayılan kapalı). */
+  /** Son alınan özellik bayrakları (ADR-0066). */
+  featureFlags: Record<string, { enabled: boolean; value: unknown }> | null;
+  /** Abonelik yokken kovanın hesaplandığı kalıcı rastgele kimlik. */
+  flagSubject: string | null;
   locationShared: boolean;
   /** Son konum gönderiminin kuyruğa yazıldığı an (epoch ms); 5 dk aralık için. */
   locationSentAt: number | null;
@@ -528,6 +534,39 @@ export interface InboxPage {
   hasMore: boolean;
 }
 
+/** İçerik kartı (ADR-0082); akış sabitlenmiş → öncelik → yeni sırasıyla gelir. */
+export interface ContentCard {
+  id: string;
+  messageId: string | null;
+  type: 'classic' | 'captioned_image' | 'image_only';
+  title: string | null;
+  body: string | null;
+  url: string | null;
+  imageUrl: string | null;
+  buttonText: string | null;
+  data: Record<string, string>;
+  pinned: boolean;
+  priority: number;
+  viewed: boolean;
+  clicked: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+/** `login` ile birlikte ayarlanan profil (Android `HsUserProfile` / iOS `HSUserProfile` karşılığı). */
+export interface UserProfile {
+  email?: string;
+  /** Uluslararası biçimde telefon (ör. `+905321234567`). */
+  sms?: string;
+  tags?: Record<string, string>;
+  aliases?: Record<string, string>;
+}
+
+export interface ContentCardFeed {
+  cards: ContentCard[];
+  unviewedCount: number;
+}
+
 export interface InboxListOptions {
   /** 1-200 (varsayılan 50). */
   limit?: number;
@@ -693,6 +732,39 @@ export interface WebCampaignList {
   data: WebCampaign[];
   forms: Record<string, WebForm>;
   surveys: Record<string, WebSurvey>;
+  language: string;
+}
+
+/** Kişiselleştirme değişikliği (ADR-0083): metinler istenen dildedir. */
+export interface PersonalizationChange {
+  selector: string;
+  action: 'text' | 'image' | 'link' | 'hide' | 'show';
+  text: string | null;
+  url: string | null;
+  alt: string | null;
+  new_tab: boolean;
+}
+
+export type PersonalizationGoal =
+  | { type: 'event'; event: string }
+  | { type: 'page'; url: { op: string; value: string } }
+  | { type: 'click'; selector: string };
+
+export interface WebPersonalization {
+  id: string;
+  priority: number;
+  conditions: WebCampaignConditions;
+  targeting: { visitor: 'all' | 'new' | 'returning'; devices: ('desktop' | 'mobile' | 'tablet')[] };
+  changes: PersonalizationChange[];
+  variants: { id: string; weight_percent: number; changes: PersonalizationChange[] }[];
+  winner_variant_id: string | null;
+  goal: PersonalizationGoal | null;
+  end_at: string | null;
+}
+
+export interface WebPersonalizationList {
+  data: WebPersonalization[];
+  editor_origins: string[];
   language: string;
 }
 

@@ -1,3 +1,4 @@
+import { resolveSdkLocale, sdkDirection, sdkStrings } from '../core/strings.js';
 import type { RemoteCustomLinkConfig, RemotePromptConfig, RemoteWelcomeConfig } from '../core/api.js';
 import { normalizeEmail, normalizePhone } from '../core/contact.js';
 import type {
@@ -9,53 +10,9 @@ import type {
   WelcomeNotificationOptions,
 } from '../core/types.js';
 
-const TEXTS = {
-  tr: {
-    title: 'Bildirimleri açmak ister misiniz?',
-    message: 'Önemli güncellemeleri ve kampanyaları anında alın.',
-    accept: 'İzin ver',
-    cancel: 'Şimdi değil',
-    categoriesTitle: 'Hangi konularda bildirim almak istersiniz?',
-    subscribed: 'Bildirimlere abonesiniz',
-    unsubscribed: 'Bildirimlere abone ol',
-    // E-posta/SMS toplama istemi (ADR-0019 §11)
-    collectTitle: 'Haberdar olmak ister misiniz?',
-    collectMessage: 'Kampanya ve güncellemeleri size ulaştıralım.',
-    collectAccept: 'Kaydol',
-    emailLabel: 'E-posta adresi',
-    smsLabel: 'Telefon numarası',
-    invalidEmail: 'Geçerli bir e-posta adresi girin (ör. ad@ornek.com).',
-    invalidPhone: 'Telefonu uluslararası biçimde girin (ör. +905321234567).',
-    // Konum izni açıklaması (v2 Faz 17b)
-    locationTitle: 'Konumunuzu paylaşın',
-    locationMessage:
-      'Yakınınızdaki ilgili bildirimleri gönderebilmek için yaklaşık konumunuzu yalnızca site açıkken kullanırız. Bu ayarı istediğiniz zaman kapatabilirsiniz.',
-    locationAccept: 'Devam',
-  },
-  en: {
-    title: 'Enable notifications?',
-    message: 'Get important updates and offers instantly.',
-    accept: 'Allow',
-    cancel: 'Not now',
-    categoriesTitle: 'Which topics would you like to hear about?',
-    subscribed: 'You are subscribed to notifications',
-    unsubscribed: 'Subscribe to notifications',
-    collectTitle: 'Stay in the loop?',
-    collectMessage: 'Get offers and updates delivered to you.',
-    collectAccept: 'Sign up',
-    emailLabel: 'Email address',
-    smsLabel: 'Phone number',
-    invalidEmail: 'Enter a valid email address (e.g. name@example.com).',
-    invalidPhone: 'Enter the phone in international format (e.g. +14155550100).',
-    locationTitle: 'Share your location',
-    locationMessage:
-      'We use your approximate location only while the site is open, to send you relevant nearby notifications. You can turn this off at any time.',
-    locationAccept: 'Continue',
-  },
-};
-
+/** Metinler dil kataloğundan (ADR-0084): tr/en gömülü, diğer diller SDK başlarken yüklenir. */
 function texts(language: string) {
-  return language.toLowerCase().startsWith('tr') ? TEXTS.tr : TEXTS.en;
+  return sdkStrings(language).prompt;
 }
 
 const STYLE_ID = 'hs-prompt-style';
@@ -96,8 +53,9 @@ function ensureStyle(): void {
 /** Dil kodu → metin haritasından seçim: geçerli dil, yoksa en, tr, ilk değer. */
 export function pickLocalized<T>(map: Record<string, T> | undefined, language: string): T | undefined {
   if (!map) return undefined;
+  // Bölgeli anahtarlar (`pt-BR`, `zh-CN`) önce, sonra ana dil kodu (ADR-0084).
   const lang = language.slice(0, 2).toLowerCase();
-  return map[lang] ?? map.en ?? map.tr ?? Object.values(map)[0];
+  return map[resolveSdkLocale(language)] ?? map[lang] ?? map.en ?? map.tr ?? Object.values(map)[0];
 }
 
 /** Dashboard karşılama bildirimi → init seçeneği biçimi (geçerli dile göre). */
@@ -234,7 +192,7 @@ export function showSlidedown(options: SlidedownOptions, language: string, curre
     )}</span><input type="${kind === 'email' ? 'email' : 'tel'}" name="hs-${kind}" autocomplete="${
       kind === 'email' ? 'email' : 'tel'
     }" inputmode="${kind === 'email' ? 'email' : 'tel'}" placeholder="${
-      kind === 'email' ? 'name@example.com' : '+90 532 123 45 67'
+      kind === 'email' ? t.emailPlaceholder : '+90 532 123 45 67'
     }" aria-invalid="false"></label>`;
   const fieldsHtml = `${wantsEmail ? field('email') : ''}${wantsSms ? field('sms') : ''}${
     wantsEmail || wantsSms ? '<p class="hs-error" role="alert" aria-live="assertive"></p>' : ''
@@ -244,6 +202,7 @@ export function showSlidedown(options: SlidedownOptions, language: string, curre
     const box = document.createElement('div');
     box.className = 'hs-slidedown';
     box.setAttribute('role', 'dialog');
+    box.setAttribute('dir', sdkDirection(language));
     box.setAttribute('aria-live', 'polite');
     box.setAttribute('data-hs-collect', collect);
     box.innerHTML = `

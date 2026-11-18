@@ -21,7 +21,8 @@ import {
 import { currentPosition, geolocationPermission, isGeolocationSupported } from './browser/location.js';
 import { renderCustomLinks } from './browser/custom-link.js';
 import { welcomeNotification } from './browser/welcome.js';
-import { InAppManager } from './browser/in-app.js';
+import { InAppManager, type InAppRenderer } from './browser/in-app.js';
+import { PersonalizationManager } from './browser/personalization.js';
 import { WebCampaignManager } from './browser/web-campaigns.js';
 import { SessionTracker } from './browser/session.js';
 import {
@@ -30,6 +31,7 @@ import {
   deleteSubscription,
   fetchPreferences,
   ownershipProof,
+  fetchPlacement,
   postInAppEvent,
   preferencesFromApi,
   putPreferences,
@@ -48,7 +50,20 @@ import { ErrorReporter } from './core/errors.js';
 import { newEventId } from './core/event-id.js';
 import { assertAliasLabel, normalizeAliases } from './core/identity.js';
 import { InboxClient } from './core/inbox.js';
+import { loadedSection, loadSdkStrings, sdkDirection } from './core/strings.js';
+import { SearchClient, loadSearchWidget, type SearchQueryOptions, type SearchResponse, type SearchWidgetHandle, type SearchWidgetOptions } from './core/search.js';
+import {
+  contentCardEvent,
+  listContentCards,
+  loadContentCardsWidget,
+  type ContentCardsViewHandle,
+  type ContentCardsViewOptions,
+} from './core/content-cards.js';
 import { ChatClient, loadChatWidget, type ChatEvents, type ChatWidgetHandle, type ChatWidgetOptions } from './core/chat.js';
+import { newFlagSubject, parseFeatureFlags } from './core/feature-flags.js';
+import { renderPlacement } from './browser/placement-render.js';
+import { safeDeeplink, safeHttpUrl } from './core/in-app-logic.js';
+import type { InAppMessage } from './core/types.js';
 import { locationRefreshDue } from './core/location.js';
 import { Logger } from './core/logger.js';
 import { OfflineQueue } from './core/queue.js';
@@ -81,6 +96,7 @@ import type {
   PushSubscriptionState,
   QueuedOperation,
   UserPreferences,
+  UserProfile,
   ConsentState,
   WebCampaignEvent,
   WebPushPayload,
@@ -92,6 +108,11 @@ const SDK_VERSION = typeof __HS_SDK_VERSION__ === 'string' ? __HS_SDK_VERSION__ 
 type Listener<T> = (event: T) => void;
 
 /** Pushizo Web SDK ana sınıfı (eski sağlayıcı v5 yüzeyiyle uyumlu). */
+/** Değişiklikten haberdar olmak için gözlemci türü. */
+type FeatureFlagListener = () => void;
+
+const PLACEMENT_KEY = /^[a-z][a-z0-9_.-]{0,63}$/;
+
 export class PushizoSdk {
   readonly version = SDK_VERSION;
   private readonly logger = new Logger();
@@ -107,6 +128,7 @@ export class PushizoSdk {
   private initPromise: Promise<void> | null = null;
   private language = 'en';
   private readonly clickListeners = new Set<Listener<NotificationClickEvent>>();
+  private readonly featureFlagListeners = new Set<FeatureFlagListener>();
   private readonly foregroundListeners = new Set<Listener<ForegroundLifecycleEvent>>();
   private readonly subscriptionObservers = new Set<Listener<PushSubscriptionState>>();
   private readonly permissionObservers = new Set<Listener<PermissionChangeEvent>>();
@@ -153,6 +175,16 @@ export class PushizoSdk {
     sendOutcome: (name, value) => this.Session.sendEvent(name, undefined, value),
     rendererUrl: () => `${this.apiSeed}/sdk-web/PushizoWebCampaigns.js`,
   });
+  /** Web sayfası kişiselleştirme (ADR-0083); görsel seçici ayrı pakette. */
+  private readonly personalization = new PersonalizationManager({
+    api: () => this.api,
+    appId: () => this.options?.appId ?? null,
+    logger: this.logger,
+    language: () => this.language,
+    subscriptionId: () => this.primarySubscriptionId(),
+    ownershipHash: (subscriptionId) => this.ownershipHashOf(subscriptionId),
+    editorUrl: () => `${this.apiSeed}/sdk-web/PushizoVisualEditor.js`,
+  });
   /** Canlı sohbet (ADR-0040): istemci ana pakette, widget arayüzü ayrı pakette tembel yüklenir. */
   private readonly chat = new ChatClient({
     api: () => this.api,
@@ -167,6 +199,9 @@ export class PushizoSdk {
     allowed: () => !!this.api && !this.consentPending(),
   });
   private chatWidget: ChatWidgetHandle | null = null;
+  /** Site içi arama (ADR-0093): istemci ana pakette, arama penceresi ayrı pakette tembel yüklenir. */
+  private readonly search = new SearchClient({ api: () => this.api, language: () => this.language.split('-')[0] ?? 'en' });
+  private searchWidget: SearchWidgetHandle | null = null;
 
   // --- Yaşam döngüsü ---
 
@@ -184,6 +219,8 @@ export class PushizoSdk {
       options.language ?? (typeof navigator !== 'undefined' ? navigator.language : 'en');
     const seed = (options.apiUrl ?? inferApiUrl()).replace(/\/$/, '');
     this.apiSeed = seed;
+    // tr/en dışındaki dilin son kullanıcı metinleri arka planda yüklenir (ADR-0084); yüklenene kadar İngilizce.
+    if (typeof fetch !== 'undefined') void loadSdkStrings(seed, this.language);
     this.store = new StateStore(options.appId);
     const saved = this.store.get();
     // Daha önce öğrenilen bölgesel kök, aynı başlangıç kökü için kullanılır (ADR-0032 §4).
@@ -263,6 +300,8 @@ export class PushizoSdk {
     this.started = true;
     const options = this.options!;
     this.captureAttribution();
+    // Kişiselleştirme yapılandırmayı beklemez: önbellekteki deneyimler hemen uygulanır (titreme önleme).
+    if (options.webPersonalization !== false) this.personalization.start();
     // Yapılandırma önce alınır: service worker yolu/kapsamı ve istem ayarları dashboard'dan gelebilir.
     try {
       this.config = await this.api!.request<SdkConfig>('GET', '/config');
@@ -305,6 +344,7 @@ export class PushizoSdk {
     // In-app mesajlar oturum başında listeyi alır; abonelik (push veya e-posta/SMS) yoksa beklemede kalır.
     this.inApp.start();
     if (options.webCampaigns !== false) void this.webCampaigns.start();
+    if (options.webPersonalization !== false) void this.personalization.load();
     this.identityKey = this.currentIdentityKey();
 
     // Oturum takibi
@@ -312,6 +352,7 @@ export class PushizoSdk {
       () => {
         this.enqueue({ type: 'session_start', at: Date.now() });
         this.inApp.onSessionStart();
+        void this.refreshFeatureFlags();
       },
       (duration) => {
         this.inApp.onSessionEnd();
@@ -330,6 +371,10 @@ export class PushizoSdk {
     await this.queue!.flush();
     // Oturum başlangıcında konum (yalnızca paylaşım açık ve izin zaten verilmişse).
     void this.refreshLocation();
+    // `Location.permissionGranted` için izin durumu istem açmadan okunur (Permissions API yoksa dokunulmaz).
+    void geolocationPermission().then((p) => {
+      if (p === 'granted' || p === 'denied') this.store?.update({ locationPermissionGranted: p === 'granted' });
+    });
 
     if (options.bell?.enabled) {
       this.unmountBell = mountBell(
@@ -702,6 +747,49 @@ export class PushizoSdk {
     }
   }
 
+  // --- Gömülü yerleşimler (ADR-0068) ---
+
+  private reportPlacement(message: InAppMessage, eventType: 'impression' | 'click' | 'dismiss', buttonId?: string): void {
+    const subscriptionId = this.store?.get().subscriptionId;
+    if (!subscriptionId) return;
+    this.enqueue({
+      type: 'in_app_event',
+      messageId: message.id,
+      subscriptionId,
+      eventType,
+      at: Date.now(),
+      ...(buttonId ? { buttonId } : {}),
+      ...(message.variant_id ? { variantId: message.variant_id } : {}),
+    });
+  }
+
+  // --- Özellik bayrakları (ADR-0066) ---
+
+  /** Değerleri sunucudan alır. Hata son değerleri korur; gizlilik onayı beklenirken istek gönderilmez. */
+  private async refreshFeatureFlags(): Promise<void> {
+    const store = this.store;
+    const api = this.api;
+    if (!store || !api || !this.started || this.consentPending()) return;
+    const state = store.get();
+    let subject = state.flagSubject;
+    if (!subject) {
+      subject = newFlagSubject();
+      store.update({ flagSubject: subject });
+    }
+    const subscriptionId = state.subscriptionId;
+    const body = subscriptionId
+      ? { subscription_id: subscriptionId, ...ownershipProof(this.ownershipHashOf(subscriptionId), state.identityHash) }
+      : { subject };
+    try {
+      const flags = parseFeatureFlags(await api.request('POST', '/feature-flags/evaluate', body));
+      if (!flags) return;
+      store.update({ featureFlags: flags });
+      for (const listener of this.featureFlagListeners) listener();
+    } catch (err) {
+      this.logger.debug('özellik bayrakları alınamadı', err);
+    }
+  }
+
   // --- Konum (v2 Faz 17b) ---
 
   private locationInFlight = false;
@@ -981,6 +1069,7 @@ export class PushizoSdk {
     this.chat.onIdentityChanged();
     // Segment hedefli web kampanyaları abonelikli kimlikle yeniden değerlendirilir.
     if (this.started && this.options?.webCampaigns !== false) void this.webCampaigns.refresh();
+    if (this.started && this.options?.webPersonalization !== false) void this.personalization.refresh();
   }
 
   /** Kullanıcı kimliği; yoksa abonelik oluşturmayı dener, olmazsa yeniden denenebilir hata fırlatır. */
@@ -1199,11 +1288,16 @@ export class PushizoSdk {
   /**
    * Kullanıcıyı kimliklendirir. Kimlik kanıtı app ayarına göre HMAC `identityHash` (eski imza: ikinci argüman dize)
    * ve/veya sunucunuzda imzalanmış ES256 JWT'dir: `login(id, { jwt })`. JWT, SDK isteklerinde `Authorization` başlığıyla
-   * gider; süresi dolunca `updateUserJwt` ile yenilenir.
+   * gider; süresi dolunca `updateUserJwt` ile yenilenir. `profile` verilirse e-posta, SMS, tag ve alias'lar girişle birlikte
+   * tek çağrıda ayarlanır (`login('user_42', undefined, { email: 'ali@ornek.com', tags: { plan: 'pro' } })`).
    */
-  async login(externalId: string, proof?: string | { identityHash?: string; jwt?: string }): Promise<void> {
+  async login(externalId: string, proof?: string | { identityHash?: string; jwt?: string }, profile?: UserProfile): Promise<void> {
     this.assertReady();
     if (!externalId) throw new Error('externalId gerekli');
+    // Profil girişten önce doğrulanır: geçersiz e-posta/telefon/alias yarım kalmış bir kimlik değişimi bırakmaz.
+    const email = profile?.email ? normalizeContact('email', profile.email) : null;
+    const sms = profile?.sms ? normalizeContact('sms', profile.sms) : null;
+    const aliases = profile?.aliases && Object.keys(profile.aliases).length > 0 ? normalizeAliases(profile.aliases) : null;
     const identityHash = typeof proof === 'string' ? proof : proof?.identityHash;
     const jwt = typeof proof === 'object' ? proof.jwt : undefined;
     if (this.config?.identity_verification_required) {
@@ -1243,6 +1337,10 @@ export class PushizoSdk {
     }
     await this.linkContacts(externalId, identityHash, moved);
     this.syncIdentity();
+    if (email) this.enqueue({ type: 'contact_add', channel: 'email', token: email, at: Date.now() });
+    if (sms) this.enqueue({ type: 'contact_add', channel: 'sms', token: sms, at: Date.now() });
+    if (profile?.tags && Object.keys(profile.tags).length > 0) this.User.addTags(profile.tags);
+    if (aliases) this.User.addAliases(aliases);
     await this.queue!.flush();
   }
 
@@ -1311,6 +1409,7 @@ export class PushizoSdk {
     getTags: (): Record<string, string> => ({ ...(this.store?.get().tags ?? {}) }),
     setLanguage: (code: string): void => {
       this.language = code;
+      if (typeof fetch !== 'undefined') void loadSdkStrings(this.apiSeed, code);
       this.enqueue({ type: 'properties', properties: { language: code }, at: Date.now() });
     },
     setProperty: (key: string, value: unknown): void =>
@@ -1475,6 +1574,28 @@ export class PushizoSdk {
       this.foregroundListeners.add(cb);
       return () => this.foregroundListeners.delete(cb);
     },
+    removeClickListener: (cb: Listener<NotificationClickEvent>): void => {
+      this.clickListeners.delete(cb);
+    },
+    removeForegroundLifecycleListener: (cb: Listener<ForegroundLifecycleEvent>): void => {
+      this.foregroundListeners.delete(cb);
+    },
+    /**
+     * Uygulama simgesi rozeti (App Badging API; yüklü PWA'larda görünür). `0` rozeti siler. Tarayıcı desteklemiyorsa
+     * ya da çağrı reddedilirse `false` döner (ağ çağrısı yapmaz).
+     */
+    setBadgeCount: async (count: number): Promise<boolean> => {
+      const nav = typeof navigator !== 'undefined' ? (navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> }) : null;
+      if (!nav?.setAppBadge || !Number.isFinite(count)) return false;
+      try {
+        if (count > 0) await nav.setAppBadge(Math.floor(count));
+        else await (nav.clearAppBadge ? nav.clearAppBadge() : nav.setAppBadge(0));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    clearBadge: (): Promise<boolean> => this.Notifications.setBadgeCount(0),
     /**
      * İzin değişimi gözlemcisi: istem sonucu ve (Permissions API destekleniyorsa) kullanıcının site
      * ayarlarından yaptığı değişiklikler bildirilir. Dönen fonksiyon gözlemciyi kaldırır.
@@ -1524,6 +1645,74 @@ export class PushizoSdk {
    * en sık 5 dakikada bir push aboneliğine yazılır; izin yoksa veya gizlilik onayı verilmemişse gönderilmez. İlk konum
    * sunucuda KVKK açık rıza kaydı sayılır; `setShared(false)` konumu ve rıza kaydını hemen sildirir.
    */
+  /** Gömülü yerleşimler: uygulamanın ayırdığı alana içerik (ADR-0068). */
+  readonly Placements = {
+    /** Alanın içeriği. Abonelik yoksa veya gizlilik onayı bekleniyorsa boş döner. */
+    list: async (key: string, options?: { limit?: number }): Promise<InAppMessage[]> => {
+      if (!PLACEMENT_KEY.test(key)) throw new Error('Pushizo.Placements: geçersiz yerleşim anahtarı.');
+      this.assertReady();
+      const state = this.store!.get();
+      if (!state.subscriptionId || this.consentPending()) return [];
+      const res = await fetchPlacement(this.api!, key, state.subscriptionId, this.ownershipHashOf(state.subscriptionId), options?.limit ?? 1);
+      return res.data;
+    },
+    /** İçeriği öğeye çizer, gösterimi ve etkileşimi bildirir. Önceki çizim silinir. */
+    render: async (key: string, element: Element, options?: { limit?: number }): Promise<{ count: number; remove: () => void }> => {
+      const messages = await this.Placements.list(key, options);
+      element.querySelectorAll(':scope > [data-hs-placement-message]').forEach((node) => node.remove());
+      const handles = messages.map((message) => {
+        const handle = renderPlacement(message, element, {
+          language: this.language,
+          onButton: (button) => {
+            this.reportPlacement(message, 'click', button.id);
+            const action = button.action;
+            if (action.type === 'url') {
+              const safe = safeHttpUrl(action.url);
+              if (safe) window.open(safe, '_blank', 'noopener,noreferrer');
+            } else if (action.type === 'deeplink') {
+              const safe = safeDeeplink(action.url);
+              if (safe) window.location.assign(safe);
+            } else if (action.type === 'tags' && action.tags) {
+              this.enqueue({ type: 'tags', tags: action.tags, at: Date.now() });
+            } else if (action.type === 'dismiss') {
+              handle.remove();
+            }
+          },
+          onDismiss: () => {
+            this.reportPlacement(message, 'dismiss');
+            handle.remove();
+          },
+        });
+        this.reportPlacement(message, 'impression');
+        return handle;
+      });
+      return { count: handles.length, remove: () => handles.forEach((h) => h.remove()) };
+    },
+    /** Kendi çizdiğiniz içerik için: gösterim, tıklama ve kapatma bildirimi. */
+    reportImpression: (message: InAppMessage): void => this.reportPlacement(message, 'impression'),
+    reportClick: (message: InAppMessage, buttonId: string): void => this.reportPlacement(message, 'click', buttonId),
+    reportDismiss: (message: InAppMessage): void => this.reportPlacement(message, 'dismiss'),
+  };
+
+  /** Özellik bayrakları: değerler oturum başında yenilenir ve cihazda saklanır (ADR-0066). */
+  readonly FeatureFlags = {
+    refresh: (): Promise<void> => this.refreshFeatureFlags(),
+    /** Bayrak bu kullanıcı için açık mı; değer henüz yoksa `defaultValue`. */
+    isEnabled: (key: string, defaultValue = false): boolean => this.store?.get().featureFlags?.[key]?.enabled ?? defaultValue,
+    /** Bayrağın değeri (açıksa açık, kapalıysa kapalı değer); değer yoksa `defaultValue`. */
+    getValue: <T = unknown>(key: string, defaultValue?: T): T | undefined => {
+      const flag = this.store?.get().featureFlags?.[key];
+      return flag && flag.value !== undefined && flag.value !== null ? (flag.value as T) : defaultValue;
+    },
+    addObserver: (listener: () => void): (() => void) => {
+      this.featureFlagListeners.add(listener);
+      return () => this.featureFlagListeners.delete(listener);
+    },
+    removeObserver: (listener: () => void): void => {
+      this.featureFlagListeners.delete(listener);
+    },
+  };
+
   readonly Location = {
     /** Paylaşımı açar/kapatır (kalıcı). Açılırken izin varsa konum hemen gönderilir; izin için `requestPermission`. */
     setShared: (shared: boolean): void => {
@@ -1541,6 +1730,13 @@ export class PushizoSdk {
     /** Paylaşım açık mı (kalıcı tercih; izin durumundan bağımsız). */
     get isShared(): boolean {
       return sdkRef.store?.get().locationShared ?? false;
+    },
+    /**
+     * Tarayıcı konum izni verilmiş mi (son bilinen durum; istem açmaz). SDK başlarken ve konum her okunduğunda
+     * Permissions API ile güncellenir; API yoksa `requestPermission` sonucuna dayanır.
+     */
+    get permissionGranted(): boolean {
+      return sdkRef.store?.get().locationPermissionGranted ?? false;
     },
     /**
      * Konum iznini ister. İzin henüz verilmediyse önce açıklama kutusu gösterilir (`rationale`, yoksa varsayılan metin);
@@ -1594,8 +1790,9 @@ export class PushizoSdk {
         eventId: given && /^[A-Za-z0-9._:-]{8,64}$/.test(given) ? given : newEventId(),
         at: Date.now(),
       });
-      // Olay adı in-app `event` tetiklerini değerlendirir.
+      // Olay adı in-app `event` tetiklerini ve kişiselleştirme olay hedeflerini değerlendirir.
       this.inApp.onEvent(name);
+      this.personalization.onEvent(name);
     },
   };
 
@@ -1626,6 +1823,11 @@ export class PushizoSdk {
     removeLifecycleListener: (listener: InAppLifecycleListener): void => {
       this.inApp.lifecycleListeners.delete(listener);
     },
+    /**
+     * Özel çizim: mesajları SDK yerine site çizer (`null` varsayılan çizime döner). Tetik, sıklık, olay kaydı ve
+     * düğme aksiyonları SDK'da kalır; HTML içerikli mesajlar her zaman varsayılan çizimle gösterilir.
+     */
+    setRenderer: (renderer: InAppRenderer | null): void => this.inApp.setRenderer(renderer),
     /** `true` iken yeni mesaj gösterilmez. */
     get paused(): boolean {
       return sdkRef.inApp.paused;
@@ -1696,6 +1898,51 @@ export class PushizoSdk {
     removeObserver: (cb: Listener<InboxChangeEvent>): void => this.inbox.removeObserver(cb),
   };
 
+  /** Kart uçları için bağlam: kutu ile aynı kanıt kuralı (ADR-0016). */
+  private cardContext(): { api: SdkApi; auth: InboxAuth } {
+    this.assertReady();
+    const api = this.api;
+    if (!api) throw new Error('Pushizo.init önce çağrılmalı.');
+    const auth = this.inboxAuth();
+    if (!auth)
+      throw new Error('Pushizo.ContentCards: kullanıcı veya abonelik yok. Önce bildirim aboneliği oluşturun, login olun ya da User.addEmail/addSms kullanın.');
+    return { api, auth };
+  }
+
+  /**
+   * İçerik kartları (ADR-0082): kalıcı kart akışı (`content_card` mesajları); kartlar bildirim kutusunda görünmez.
+   * Gösterimde `logImpression`, tıklamada `logClick`, kapatmada `dismiss`.
+   */
+  readonly ContentCards = {
+    list: async (limit?: number) => {
+      const { api, auth } = this.cardContext();
+      return listContentCards(api, auth, limit);
+    },
+    logImpression: async (cardId: string) => {
+      const { api, auth } = this.cardContext();
+      return contentCardEvent(api, auth, cardId, 'impression');
+    },
+    logClick: async (cardId: string) => {
+      const { api, auth } = this.cardContext();
+      return contentCardEvent(api, auth, cardId, 'click');
+    },
+    dismiss: async (cardId: string) => {
+      const { api, auth } = this.cardContext();
+      return contentCardEvent(api, auth, cardId, 'dismiss');
+    },
+    /**
+     * Hazır kart akışını öğeye çizer (ayrı paket, tembel yüklenir): yükleniyor/boş/hata durumları, gösterim, tıklama
+     * ve kapatma kaydı görünümdedir. Dönen tutamaç `refresh()` ve `destroy()` sağlar.
+     */
+    render: async (target: string | Element, options: ContentCardsViewOptions = {}): Promise<ContentCardsViewHandle> => {
+      this.assertReady();
+      const element = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!element) throw new Error('Pushizo.ContentCards: hedef öğe bulunamadı.');
+      const mount = options.mount ?? (await loadContentCardsWidget(options.widgetUrl ?? `${this.apiSeed}/sdk-web/PushizoContentCards.js`, options.nonce)).mount;
+      return mount(this.ContentCards, element, { ...options, language: this.language, dir: sdkDirection(this.language), strings: loadedSection(this.language, 'cards') });
+    },
+  };
+
   private enqueueContact(
     type: 'contact_add' | 'contact_remove',
     channel: ContactChannel,
@@ -1722,7 +1969,7 @@ export class PushizoSdk {
         this.logger.info('canlı sohbet widget\'ı app ayarında kapalı');
         return;
       }
-      const mountOptions = { ...options, config, language: this.language.split('-')[0] ?? 'en' };
+      const mountOptions = { ...options, config, language: this.language.split('-')[0] ?? 'en', strings: loadedSection(this.language, 'chat') };
       if (options.mount) this.chatWidget = options.mount(this.chat, mountOptions);
       else {
         const widget = await loadChatWidget(options.widgetUrl ?? `${this.apiSeed}/sdk-web/PushizoChatWidget.js`, options.nonce);
@@ -1767,7 +2014,61 @@ export class PushizoSdk {
     get unreadCount(): number {
       return sdkRef.chat.unread;
     },
+    /** Sohbet ayarları ve çevrimiçi durumu (`refresh` ile önbellek atlanır). */
+    getConfig: async (refresh = false) => {
+      this.assertReady();
+      return this.chat.config(refresh);
+    },
+    /** Ziyaretçinin konuşması (henüz yoksa `null`); okunmamış sayısını da günceller. */
+    getConversation: async () => {
+      this.assertReady();
+      return this.chat.refresh();
+    },
+    /** Temsilciye "yazıyor" bilgisini iletir (en iyi çaba). */
+    setTyping: (typing: boolean): void => this.chat.typing(typing),
+    /** Ek indirme adresi (ziyaretçi belirtecini taşır; yalnız bu ziyaretçi için kullanın). */
+    attachmentUrl: (attachmentId: string, download = false): string => this.chat.attachmentUrl(attachmentId, download),
     on: <K extends keyof ChatEvents>(event: K, cb: (value: ChatEvents[K]) => void): (() => void) => this.chat.on(event, cb),
+  };
+
+  /**
+   * Site içi arama (ADR-0093). `open()` hazır arama penceresini (ayrı paket) yükleyip açar; arayüzsüz kullanım için
+   * `query()` + `trackClick()`. `mode: 'answer'` sitenin kendi içeriğinden kaynak gösteren AI yanıtı ister; yanıt
+   * verilemezse yalnız sonuçlar döner.
+   */
+  readonly Search = {
+    query: (text: string, options?: SearchQueryOptions): Promise<SearchResponse> => {
+      this.assertReady();
+      return this.search.query(text, options);
+    },
+    trackClick: (queryId: string, url: string, position?: number): Promise<void> => this.search.trackClick(queryId, url, position),
+    open: async (options: SearchWidgetOptions = {}): Promise<void> => {
+      this.assertReady();
+      if (!this.searchWidget) {
+        const mountOptions = { ...options, language: this.language, dir: sdkDirection(this.language), strings: loadedSection(this.language, 'search') };
+        const loaded = options.mount ? null : await loadSearchWidget(options.widgetUrl ?? `${this.apiSeed}/sdk-web/PushizoSearch.js`, options.nonce);
+        // Eşzamanlı iki `open()` tek pencere kurar.
+        this.searchWidget ??= loaded ? loaded.mount(this.search, mountOptions) : options.mount!(this.search, mountOptions);
+      }
+      this.searchWidget.open(options.query);
+    },
+    close: (): void => this.searchWidget?.close(),
+    /** Öğeye (seçici veya düğüm) tıklanınca pencereyi açar; dönüş: bağı kaldıran fonksiyon. */
+    attach: (target: string | Element, options: SearchWidgetOptions = {}): (() => void) => {
+      const node = typeof target === 'string' ? document.querySelector(target) : target;
+      if (!node) return () => undefined;
+      const onClick = (event: Event) => {
+        event.preventDefault();
+        void this.Search.open(options).catch((err: unknown) => this.logger.warn('arama penceresi açılamadı', err));
+      };
+      node.addEventListener('click', onClick);
+      return () => node.removeEventListener('click', onClick);
+    },
+    /** Pencereyi kaldırır (seçenekleri değiştirmek için yeniden `open()` çağrılır). */
+    destroy: (): void => {
+      this.searchWidget?.destroy();
+      this.searchWidget = null;
+    },
   };
 
   readonly Debug = {
@@ -1794,6 +2095,9 @@ export class PushizoSdk {
     this.session?.end();
     this.inApp.destroy();
     this.webCampaigns.destroy();
+    this.personalization.destroy();
+    this.searchWidget?.destroy();
+    this.searchWidget = null;
   }
 }
 

@@ -51,7 +51,7 @@ function carouselMessage(): InAppMessage {
           type: 'carousel',
           id: 'steps',
           cards: [
-            { id: 'c1', title: 'Takip et', body: 'Konuları seç', image_url: 'https://cdn.example.com/1.png', image_alt: 'Takip görseli', button: null },
+            { id: 'c1', title: 'Takip et', body: 'Konuları seç', image_url: 'https://cdn.pushizo.com/1.png', image_alt: 'Takip görseli', button: null },
             { id: 'c2', title: '<b>Kaydet</b>', body: null, image_url: 'javascript:alert(1)', image_alt: null, button: { id: 'enable', text: 'Aç', action: { type: 'push_prompt' } } },
           ],
         },
@@ -200,10 +200,10 @@ describe('InAppManager köprü eylemleri', () => {
     expect(host.addTags).toHaveBeenCalledWith({ nps: '9' });
     options().onBridge!({ type: 'track_event', name: 'nps_score', props: { score: 9 } });
     expect(host.sendEvent).toHaveBeenCalledWith('nps_score', { score: 9 });
-    options().onBridge!({ type: 'click', actionId: 'shop', url: 'https://shop.example.com/sale' });
+    options().onBridge!({ type: 'click', actionId: 'shop', url: 'https://shop.pushizo.com/sale' });
     expect(host.enqueue).toHaveBeenCalledWith(expect.objectContaining({ type: 'in_app_event', eventType: 'click', buttonId: 'shop', messageId: 'iam_html' }));
-    expect(clicks).toEqual([{ message: { id: 'iam_html' }, result: { actionId: 'shop', url: 'https://shop.example.com/sale' } }]);
-    expect(host.openUrl).toHaveBeenCalledWith('https://shop.example.com/sale');
+    expect(clicks).toEqual([{ message: { id: 'iam_html' }, result: { actionId: 'shop', url: 'https://shop.pushizo.com/sale' } }]);
+    expect(host.openUrl).toHaveBeenCalledWith('https://shop.pushizo.com/sale');
     // Mesaj kapandıktan sonra gelen eylemler yok sayılır.
     options().onBridge!({ type: 'add_tag', key: 'late', value: 'x' });
     expect(host.addTags).toHaveBeenCalledTimes(1);

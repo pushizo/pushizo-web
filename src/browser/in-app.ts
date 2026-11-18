@@ -65,7 +65,36 @@ export interface InAppHost {
 
 interface Showing {
   message: InAppMessage;
-  handle: RenderedInApp;
+  handle: Pick<RenderedInApp, 'close'>;
+}
+
+/** Özel çizimde gösterilen mesajın etkileşim kanalı (`InAppMessages.setRenderer`). */
+export interface InAppRenderHandle {
+  message: InAppMessage;
+  /** Düğmeye basıldı: tıklama kaydedilir, aksiyon çalışır ve mesaj kapatılır. Bilinmeyen kimlik yok sayılır. */
+  buttonClicked(buttonId: string): void;
+  /** Kullanıcı mesajı kapattı: kapatma kaydedilir. */
+  dismissed(): void;
+}
+
+/**
+ * Özel in-app çizimi (Android `HsInAppRenderer` / iOS `HSInAppRenderer` karşılığı). `show` mesajı çizer ve SDK'nın
+ * mesajı kapatmak için çağıracağı `close` işlevini döndürür; `false` dönerse mesaj gösterilmemiş sayılır (atlanır).
+ * HTML içerikli mesajlar özel çizime verilmez: yalıtım ve köprü doğrulaması yalnız varsayılan çizimde uygulanır.
+ */
+export interface InAppRenderer {
+  show(message: InAppMessage, handle: InAppRenderHandle): { close(): void } | false;
+}
+
+/** Mesajdaki tüm düğmeler (blok düğmeleri ve carousel kartı düğmeleri). */
+function buttonsOf(message: InAppMessage): InAppButtonBlock[] {
+  const out: InAppButtonBlock[] = [];
+  for (const block of message.display.blocks) {
+    if (block.type === 'button') out.push(block);
+    else if (block.type === 'carousel')
+      for (const card of block.cards) if (card.button) out.push({ type: 'button', ...card.button, background_color: null, text_color: null });
+  }
+  return out;
 }
 
 /**
@@ -93,6 +122,12 @@ export class InAppManager {
   private durationTimer: ReturnType<typeof setTimeout> | null = null;
   readonly clickListeners = new Set<(event: InAppClickEvent) => void>();
   readonly lifecycleListeners = new Set<InAppLifecycleListener>();
+  private renderer: InAppRenderer | null = null;
+
+  /** Özel çizimi ayarlar; `null` varsayılan çizime döner. */
+  setRenderer(renderer: InAppRenderer | null): void {
+    this.renderer = renderer;
+  }
 
   constructor(private readonly host: InAppHost) {}
 
@@ -332,15 +367,27 @@ export class InAppManager {
     if (!store || !subscriptionId) return;
     const event: InAppLifecycleEvent = { message: { id: message.id } };
     this.emitLifecycle('willDisplay', event);
-    let handle: RenderedInApp;
+    let handle: Showing['handle'];
     try {
-      handle = (this.host.render ?? renderInAppMessage)(message, {
-        language: this.host.language(),
-        onButton: (button) => this.handleButton(message, button),
-        onDismiss: () => this.dismiss(message, true),
-        onAutoDismiss: () => this.dismiss(message, false),
-        onBridge: (action) => this.handleBridge(message, action),
-      });
+      if (this.renderer && message.display.content_type !== 'html') {
+        const custom = this.renderer.show(message, {
+          message,
+          buttonClicked: (buttonId) => {
+            const button = buttonsOf(message).find((b) => b.id === buttonId);
+            if (button) this.handleButton(message, button);
+          },
+          dismissed: () => this.dismiss(message, true),
+        });
+        if (!custom) return;
+        handle = custom;
+      } else
+        handle = (this.host.render ?? renderInAppMessage)(message, {
+          language: this.host.language(),
+          onButton: (button) => this.handleButton(message, button),
+          onDismiss: () => this.dismiss(message, true),
+          onAutoDismiss: () => this.dismiss(message, false),
+          onBridge: (action) => this.handleBridge(message, action),
+        });
     } catch (err) {
       this.host.logger.error('in-app mesajı çizilemedi', err);
       this.host.reportError('in_app_render_failed', 'in-app mesajı çizilemedi', err);

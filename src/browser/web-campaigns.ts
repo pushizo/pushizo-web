@@ -1,3 +1,4 @@
+import { loadedSection } from '../core/strings.js';
 import { ApiError, queryString, type SdkApi } from '../core/api.js';
 import type { Logger } from '../core/logger.js';
 import type { WebCampaign, WebCampaignDisplay, WebCampaignEvent, WebCampaignList } from '../core/types.js';
@@ -62,7 +63,7 @@ type Listener = (event: WebCampaignEvent) => void;
 const EXIT_SCROLL_MIN = 0.3;
 const EXIT_VELOCITY = 1.2;
 
-function readJson<T>(storage: () => Storage, key: string): T | null {
+export function readJson<T>(storage: () => Storage, key: string): T | null {
   try {
     const raw = storage().getItem(key);
     return raw ? (JSON.parse(raw) as T) : null;
@@ -70,7 +71,7 @@ function readJson<T>(storage: () => Storage, key: string): T | null {
     return null;
   }
 }
-function writeJson(storage: () => Storage, key: string, value: unknown): void {
+export function writeJson(storage: () => Storage, key: string, value: unknown): void {
   try {
     storage().setItem(key, JSON.stringify(value));
   } catch {
@@ -82,6 +83,25 @@ function newVisitorId(): string {
   const bytes = new Uint8Array(12);
   globalThis.crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 20);
+}
+
+/**
+ * Ziyaretçi ve oturum durumu (web kampanyaları ve kişiselleştirme ortak; ADR-0039, ADR-0083): yeni oturumda ziyaret
+ * sayısı bir kez artar ve ilk sayfanın UTM değerleri saklanır. Durum `pushizo:wc:<app>` anahtarındadır.
+ */
+export function loadVisitorState(appId: string): { visitor: VisitorState; session: SessionState } {
+  const key = `pushizo:wc:${appId}`;
+  const v = readJson<VisitorState>(() => window.localStorage, key);
+  const visitor = v && typeof v.id === 'string' ? v : { id: newVisitorId(), visits: 0, c: {} };
+  const s = readJson<SessionState>(() => window.sessionStorage, key);
+  let session = s && s.shown ? s : null;
+  if (!session) {
+    visitor.visits++;
+    session = { utm: utmOf(window.location.search), shown: {} };
+  }
+  writeJson(() => window.localStorage, key, visitor);
+  writeJson(() => window.sessionStorage, key, session);
+  return { visitor, session };
 }
 
 /**
@@ -116,15 +136,9 @@ export class WebCampaignManager {
 
   /** Ziyaretçi ve oturum durumu: yeni oturumda ziyaret sayısı artar ve ilk sayfanın UTM değerleri saklanır. */
   private loadState(): void {
-    const v = readJson<VisitorState>(() => window.localStorage, this.key);
-    this.visitor = v && typeof v.id === 'string' ? v : { id: newVisitorId(), visits: 0, c: {} };
-    const s = readJson<SessionState>(() => window.sessionStorage, this.key);
-    if (s && s.shown) this.session = s;
-    else {
-      this.visitor.visits++;
-      this.session = { utm: utmOf(window.location.search), shown: {} };
-    }
-    this.persist();
+    const { visitor, session } = loadVisitorState(this.deps.appId() ?? '');
+    this.visitor = visitor;
+    this.session = session;
   }
 
   get visitorId(): string {
@@ -263,6 +277,8 @@ export class WebCampaignManager {
     const lang = this.list.language;
     const view = renderWebCampaign(display, {
       language: lang,
+      // tr/en dışındaki dillerde metinler yüklenen katalogdan (ADR-0084); paket yoksa kendi İngilizcesine düşer.
+      strings: loadedSection(this.deps.language(), 'campaign'),
       form: display.form_id ? this.list.forms[display.form_id] : null,
       survey: display.survey_id ? this.list.surveys[display.survey_id] : null,
       onButton: (b) => this.onButton(c, variantId, b),

@@ -28,6 +28,8 @@ export const DEFAULT_STATE: PersistedState = {
   contactPromptAnswered: false,
   contactPromptDismissedAt: null,
   contactPromptDismissCount: 0,
+  featureFlags: null,
+  flagSubject: null,
   locationShared: false,
   locationSentAt: null,
   locationPermissionGranted: false,

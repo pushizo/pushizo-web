@@ -21,9 +21,9 @@ const defaults = resolveAttributionOptions(undefined);
 const capture = (search: string, extra: Partial<Parameters<typeof captureTouch>[0]> = {}) =>
   captureTouch({
     search,
-    href: `https://shop.example.com/kampanya${search}#bolum`,
+    href: `https://shop.pushizo.com/kampanya${search}#bolum`,
     referrer: '',
-    ownHost: 'shop.example.com',
+    ownHost: 'shop.pushizo.com',
     now: NOW,
     touchId: 'touch_0001',
     state: null,
@@ -56,11 +56,11 @@ describe('atribüsyon saf mantığı', () => {
   });
 
   it('landing_url yalnızca origin + yol; referrer yalnızca dış host', () => {
-    expect(landingUrl('https://shop.example.com/a/b?email=a@b.com&utm_source=x#token')).toBe('https://shop.example.com/a/b');
+    expect(landingUrl('https://shop.pushizo.com/a/b?email=a@b.com&utm_source=x#token')).toBe('https://shop.pushizo.com/a/b');
     expect(landingUrl('bozuk')).toBeUndefined();
-    expect(referrerHost('https://www.google.com/search?q=gizli', 'shop.example.com')).toBe('www.google.com');
-    expect(referrerHost('https://shop.example.com/onceki', 'shop.example.com')).toBeUndefined();
-    expect(referrerHost('', 'shop.example.com')).toBeUndefined();
+    expect(referrerHost('https://www.google.com/search?q=gizli', 'shop.pushizo.com')).toBe('www.google.com');
+    expect(referrerHost('https://shop.pushizo.com/onceki', 'shop.pushizo.com')).toBeUndefined();
+    expect(referrerHost('', 'shop.pushizo.com')).toBeUndefined();
   });
 
   it('windowDays 1–90 aralığına kırpılır; varsayılan 30 gün', () => {
@@ -88,7 +88,7 @@ describe('atribüsyon saf mantığı', () => {
       occurred_at: '2026-10-20T10:00:00.000Z',
       utm_source: 'facebook',
       utm_campaign: 'c1',
-      landing_url: 'https://shop.example.com/kampanya',
+      landing_url: 'https://shop.pushizo.com/kampanya',
     });
     expect(first.state).toEqual({ first: first.touch, last: first.touch });
     // Yenileme: aynı parametre kümesi, 10 dk sonra.
@@ -265,7 +265,7 @@ describe('Attribution (SDK)', () => {
     const api = fakeApi();
     const hs = createSdk();
     await init(hs);
-    hs.User.addEmail('a@example.com');
+    hs.User.addEmail('a@pushizo.com');
     await vi.waitFor(() => expect(api.attribution()).toHaveLength(1));
     const body = api.attribution()[0]!.body!;
     expect(body.subscription_id).toBe('sub_mail');

@@ -15,7 +15,26 @@ export type {
   ChatWidgetMountOptions,
   ChatWidgetOptions,
 } from './core/chat.js';
+export type {
+  SearchAnswer,
+  SearchQueryOptions,
+  SearchResponse,
+  SearchResult,
+  SearchWidgetHandle,
+  SearchWidgetModule,
+  SearchWidgetMountOptions,
+  SearchWidgetOptions,
+} from './core/search.js';
+export type {
+  ContentCardsModule,
+  ContentCardsMountOptions,
+  ContentCardsSource,
+  ContentCardsViewHandle,
+  ContentCardsViewOptions,
+} from './core/content-cards.js';
+export type { InAppRenderer, InAppRenderHandle } from './browser/in-app.js';
 export { ContactValidationError, normalizeEmail, normalizePhone } from './core/contact.js';
+export { ampWebPushConfig, ampWebPushElement } from './amp.js';
 
 /** Tek paylaşılan örnek (ESM kullanımı: `import Pushizo from '@pushizo/web'`). */
 export const Pushizo: PushizoSdk = createSdk();
